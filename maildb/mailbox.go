@@ -89,7 +89,7 @@ WHERE user = ? AND dname = ?
 		return nil, fmt.Errorf("GetVmailbox: query = %s, %s", q, err)
 	}
 	for rows.Next() {
-		rows.Scan(&id, &active, &uid, &gid, &home,
+		err = rows.Scan(&id, &active, &uid, &gid, &home,
 			&password, &user, &dname, &d_id)
 		if err != nil {
 			return nil, fmt.Errorf("GetVmailbox: Scan, %s", err)
