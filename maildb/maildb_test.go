@@ -44,6 +44,7 @@ func TestDecode(t *testing.T) {
 		{"foo", "foo", "", ""},
 		{"foo@baz", "foo", "baz", ""},
 		{"foo+bar@baz", "foo+bar", "baz", ""},
+		{"@baz", "", "baz", ""},
 	}
 	var (
 		ap  *AddressParts
