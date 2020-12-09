@@ -13,29 +13,21 @@
 PRAGMA foreign_keys=ON;
 BEGIN TRANSACTION;
 --
+-- transport table
 CREATE TABLE "Transport" (
        id INTEGER PRIMARY KEY,
-       -- active INTEGER DEFAULT 1,
        transport TEXT,  -- lmtp|smtp|relay|local|throttled|custom|...
-       -- nexthop INTEGER,	-- foreign key (nexthop) references Domain(id)
-       -- mx INTEGER DEFAULT 1, -- 0 :[domain]:port, 1 :domain:port
-       -- port INTEGER,
-       -- UNIQUE (transport,nexthop,mx,port));
-       ;
-       -- rubbish removed. transport does nexthop etc. as simple text...
-       -- scrap the unique as well. transport becomes an edit field and
-       -- "select box" option for domain/address editing.
+       nexthop TEXT,	-- [domain]:port or domain:port
+       UNIQUE (transport,nexthop)
+       );
        -- managing a unique on all those columns and then doing runtime
        -- FU to coalesce stuff is a waste of effort. They don't move so
        -- don't move them...
--- Transport.nexthop would be a pointer to Domain.id, but without a
--- foreign key constraint because the Domain table has yet to be
--- created at this point.
---
+
+-- domain table
 CREATE TABLE "Domain" (
        id INTEGER PRIMARY KEY,
-       name TEXT,
-       -- active INTEGER DEFAULT 1,
+       name TEXT NOT NULL,
        class INTEGER DEFAULT 0, -- 1 == local, 2 == relay, 3 == valias,
        	     	     	     	-- >800 == vmbox, 0 == default, none
 				-- this is bogus overloading. We don't need
@@ -45,38 +37,52 @@ CREATE TABLE "Domain" (
 				-- and 'martian' which will become external
 				-- addresses that "will become aliases". Huh?
 				-- is this a WIP step in some external process?
-       -- owner INTEGER DEFAULT 0, -- system UID of domain owner. not used
        transport INTEGER,
        rclass INTEGER DEFAULT 30, -- restriction class, RCxx, default RC30
-       	      	      	      	  -- breaks w/ NULL. make NOT NULL
+       	      	      	      	  -- breaks w/ NULL. make NOT NULL and make it TEXT
        UNIQUE (name),
-       FOREIGN KEY(transport) REFERENCES Transport(id);
+       FOREIGN KEY(transport) REFERENCES Transport(id)
+       );
 -- This revision removes the NOT NULL constraint from Domain.name; we
 -- will insert a special record Domain.id=0 with Domain.name=NULL,
 -- which thus maintains a defacto NOT NULL constraint for other rows.
-INSERT INTO "Domain" VALUES(0,NULL,NULL,NULL,NULL,NULL,NULL);
---
+
+-- Address table
 CREATE TABLE "Address" (
        id INTEGER PRIMARY KEY,
        localpart TEXT NOT NULL,
-       domain INTEGER NOT NULL,
-       active INTEGER DEFAULT 1, -- boolean active/inactive, -1 == no imap login
+       domain INTEGER,
        transport INTEGER,
        rclass INTEGER, -- restriction class, RCxx, default RC30
-       	      	       -- if this is null, use domain rclass
+       	      	       -- if this is null, use domain rclass make TEXT
        FOREIGN KEY(domain) REFERENCES Domain(id),
        FOREIGN KEY(transport) REFERENCES Transport(id),
-       UNIQUE (localpart, domain));
--- We will insert a special record Address.id=0 with Address.domain=0
--- to differentiate aliases(5) commands, paths or includes from
--- address targets.
-INSERT INTO "Address" VALUES(0,'root',0,NULL,NULL,NULL);
---
+       UNIQUE (localpart, domain)
+       );
+
+-- address_transport
+-- return transport for address/domain.
+-- if address doesn't have one, use its domain's transport
+DROP VIEW IF EXISTS "address_transport";
+CREATE VIEW "address_transport" AS
+   SELECT DISTINCT la.localpart as local, ld.name as dname,
+       CASE WHEN at.id IS NOT NULL
+          THEN coalesce (at.transport, '') || ':' ||
+	       coalesce (at.nexthop, '')
+	  ELSE coalesce (dt.transport, '') || ':' ||
+	       coalesce (dt.nexthop, '')
+	  END
+       END AS trans
+FROM domain as	ld
+    LEFT JOIN address AS la ON	ld.id = la.domain
+    LEFT JOIN transport AS dt ON ld.transport = dt.id
+    LEFT JOIN transport AS at ON la.transport = at.id
+
+-- Alias table
 CREATE TABLE "Alias" (
        id INTEGER PRIMARY KEY,
        address INTEGER NOT NULL,
-       active INTEGER DEFAULT 1,
-       target INTEGER NOT NULL,
+       target INTEGER,
        extension TEXT, 
        FOREIGN KEY(address) REFERENCES Address(id),
        FOREIGN KEY(target) REFERENCES Address(id),
@@ -88,6 +94,23 @@ CREATE TABLE "Alias" (
 -- Alias.extension contains an address extension.  Differentiation of
 -- local(8) aliases(5) from virtual(5) is in the Address table, where
 -- Address.domain=0, the special null record in the Domain table.
+
+-- etc_aliases
+DROP VIEW IF EXISTS "etc_aliases";
+CREATE VIEW "etc_aliases" AS SELECT aa.id as id, aa.localpart as local,
+				 CASE WHEN Alias.target = 0
+                 THEN Alias.extension
+				ELSE ta.localpart ||
+				   (CASE WHEN Alias.extension is NOT NULL
+				         THEN '-' || alias.extension
+						 ELSE '' END) ||
+				    (CASE WHEN td.id = 0
+			              THEN '' ELSE '@' || td.name END)
+				END as VALUE
+		FROM Alias
+		JOIN address as ta on alias.active != 0 and alias.target = ta.id
+		JOIN domain as td on ta.domain = td.id
+		JOIN address as aa on Alias.address = aa.id and aa.domain = 0
 
 -- alias_recipient models the alias/valias file where a line is:
 --   alias	   recipient, recipient
@@ -102,11 +125,27 @@ CREATE VIEW alias_recipient as
        	    join address as aa on (aa.id = al.address)
        	    join domain as dd on (aa.domain = d.id);
 
+-- virt_alias models the virtuals file where a line is
+--   alias    recipient
+--
+DROP VIEW IF EXISTS "virt_alias";
+CREATE VIEW "virt_alias" AS SELECT aa.localpart as lcl, ad.name as name, ta.localpart ||
+		(CASE WHEN va.extension is not NULL
+		      THEN '+' || va.extension
+			  ELSE '' END) ||
+			     (CASE WHEN td.id = 0
+				       THEN '' ELSE '@' || td.name end) as valias
+	FROM Alias as va
+	JOIN address as ta on (va.target = ta.id)
+	join domain as td on (ta.domain = td.id)
+	JOIN address as aa on (va.address = aa.id)
+	join domain as ad on (aa.domain != 0 and aa.domain = ad.id)
+
 -- look at last_insert_rowid() function for insert/update trigger.
 --
 CREATE TABLE "VMailbox" (
        id INTEGER PRIMARY KEY,
-       active INTEGER DEFAULT 1, -- keep to disable imap+lmtp
+       enable INTEGER DEFAULT 1, -- to disable imap+lmtp
        uid INTEGER,
        gid INTEGER,
        home TEXT,  -- just home part for dovecot config of mail_home
