@@ -114,35 +114,3 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 		extension: ext,
 	}, nil
 }
-
-// FetchTransports
-func (mdb *MailDB) FetchTransports() (int, error) {
-	var rowcnt = 0
-	q := `
-SELECT id, active, transport, nexthop, mx, port FROM Transport
-`
-	rows, err := mdb.db.Query(q)
-	if err != nil {
-		return 0, fmt.Errorf("FetchTransports: Query, %s", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		t, err := FillTransport(rows)
-		if err != nil {
-			return rowcnt, fmt.Errorf("FetchTransports: Next, %s", err)
-		}
-		mdb.transports[t.Id()] = t
-		rowcnt++
-	}
-	return rowcnt, nil
-}
-
-// DumpTransports
-func (mdb *MailDB) DumpTransports() string {
-	var msg strings.Builder
-
-	for _, t := range mdb.transports {
-		fmt.Fprintf(&msg, "%s\n", t.Dump())
-	}
-	return msg.String()
-}
