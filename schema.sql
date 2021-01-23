@@ -13,50 +13,53 @@
 PRAGMA foreign_keys=ON;
 BEGIN TRANSACTION;
 --
+-- Access table
+DROP TABLE IF EXISTS "Access";
+CREATE TABLE "Access" (
+       id INTEGER PRIMARY KEY,
+       action TEXT NOT NULL
+       );
+
 -- transport table
+DROP TABLE IF EXISTS "Transport";
 CREATE TABLE "Transport" (
        id INTEGER PRIMARY KEY,
        transport TEXT,  -- lmtp|smtp|relay|local|throttled|custom|...
        nexthop TEXT,	-- [domain]:port or domain:port
        UNIQUE (transport,nexthop)
        );
-       -- managing a unique on all those columns and then doing runtime
-       -- FU to coalesce stuff is a waste of effort. They don't move so
-       -- don't move them...
 
 -- domain table
+DROP TABLE IF EXISTS "Domain";
 CREATE TABLE "Domain" (
        id INTEGER PRIMARY KEY,
        name TEXT NOT NULL,
        class INTEGER DEFAULT 0, -- 1 == local, 2 == relay, 3 == valias,
-       	     	     	     	-- >800 == vmbox, 0 == default, none
-				-- this is bogus overloading. We don't need
-				-- it. Local/relay can be sorted by transport
-				-- not null. The vmbox is bogus. I don't know
-				-- what '0' is for. There are 2 recs, 'alien'
-				-- and 'martian' which will become external
-				-- addresses that "will become aliases". Huh?
-				-- is this a WIP step in some external process?
+       	     	     	     	-- 0 == default (internet), none
        transport INTEGER,
-       rclass INTEGER DEFAULT 30, -- restriction class, RCxx, default RC30
+       access INTEGER,
+       vuid INTEGER,		-- virtual UID for dovecot general mboxes
+       vgid INTEGER,		-- virtual GID
+       rclass TEXT DEFAULT "DEFAULT", -- recipient restriction class
        	      	      	      	  -- breaks w/ NULL. make NOT NULL and make it TEXT
        UNIQUE (name),
-       FOREIGN KEY(transport) REFERENCES Transport(id)
+       FOREIGN KEY(transport) REFERENCES Transport(id),
+       FOREIGN KEY(access) REFERENCES Access(id)
        );
--- This revision removes the NOT NULL constraint from Domain.name; we
--- will insert a special record Domain.id=0 with Domain.name=NULL,
--- which thus maintains a defacto NOT NULL constraint for other rows.
 
 -- Address table
+DROP TABLE IF EXISTS "Address";
 CREATE TABLE "Address" (
        id INTEGER PRIMARY KEY,
        localpart TEXT NOT NULL,
        domain INTEGER,
        transport INTEGER,
-       rclass INTEGER, -- restriction class, RCxx, default RC30
-       	      	       -- if this is null, use domain rclass make TEXT
+       rclass TEXT,    -- recipient restriction class
+       	      	       -- if this is null, use domain rclass
+       access INTEGER,
        FOREIGN KEY(domain) REFERENCES Domain(id),
        FOREIGN KEY(transport) REFERENCES Transport(id),
+       FOREIGN KEY(access) REFERENCES Access(id)
        UNIQUE (localpart, domain)
        );
 
@@ -79,6 +82,7 @@ FROM domain as	ld
     LEFT JOIN transport AS at ON la.transport = at.id
 
 -- Alias table
+DROP TABLE IF EXISTS "Alias";
 CREATE TABLE "Alias" (
        id INTEGER PRIMARY KEY,
        address INTEGER NOT NULL,
@@ -87,15 +91,9 @@ CREATE TABLE "Alias" (
        FOREIGN KEY(address) REFERENCES Address(id),
        FOREIGN KEY(target) REFERENCES Address(id),
        UNIQUE(address, target, extension));
--- This revision changes Alias.name to Alias.address, because INTEGER
--- fields should not be called "name" (to me that implies TEXT.) If
--- Alias.target=0, that tells us that the Alias.extension contains a
--- /file/name, or a |command, or an :include:/file/name. Otherwise,
--- Alias.extension contains an address extension.  Differentiation of
--- local(8) aliases(5) from virtual(5) is in the Address table, where
--- Address.domain=0, the special null record in the Domain table.
 
--- etc_aliases
+-- etc_aliases (local aliases)
+-- alias	recipient, recipient ...
 DROP VIEW IF EXISTS "etc_aliases";
 CREATE VIEW "etc_aliases" AS SELECT aa.id as id, aa.localpart as local,
 				 CASE WHEN Alias.target = 0
@@ -113,9 +111,10 @@ CREATE VIEW "etc_aliases" AS SELECT aa.id as id, aa.localpart as local,
 		JOIN address as aa on Alias.address = aa.id and aa.domain = 0
 
 -- alias_recipient models the alias/valias file where a line is:
---   alias	   recipient, recipient
+--   alias@dom	   recipient, recipient
 --
--- return one or more rows, one for each recipient
+-- return one or more rows, one for each recipient ...
+DROP VIEW IF EXISTS alias_recipient;
 CREATE VIEW alias_recipient as
        select a.localpart as tlocal, d.name as tdom,
        	      aa.localpart as alocal, dd.name as adom, al.extension as ext
@@ -141,8 +140,8 @@ CREATE VIEW "virt_alias" AS SELECT aa.localpart as lcl, ad.name as name, ta.loca
 	JOIN address as aa on (va.address = aa.id)
 	join domain as ad on (aa.domain != 0 and aa.domain = ad.id)
 
--- look at last_insert_rowid() function for insert/update trigger.
---
+-- vmailbox, dovecot user database
+DROP TABLE IF EXISTS "VMailbox";
 CREATE TABLE "VMailbox" (
        id INTEGER PRIMARY KEY,
        enable INTEGER DEFAULT 1, -- to disable imap+lmtp
@@ -157,10 +156,11 @@ CREATE TABLE "VMailbox" (
 -- with baked in constants. Uid and gid should be NOT NULL and map to
 -- the common passwd entry from sssd. home should be the dir under
 -- home_dir in dovecot's config.
+DROP VIEW IF EXISTS "user_mailbox";
 CREATE VIEW "user_mailbox" AS
        select mb.id as id, a.localpart as user, d.name as dom,
        	      mb.password as pw, coalesce(mb.home, 'vmail') as home,
-       	      coalesce(mb.uid, d.class) as uid, coalesce(mb.gid, 800) as gid,
+       	      coalesce(mb.uid, d.vuid) as uid, coalesce(mb.gid, d.vgid) as gid,
        	      mb.active as inuse, a.active as active
        from VMailbox as mb
        	      join address as a on (a.id = mb.id)
