@@ -30,7 +30,7 @@ import (
 
 // RFC822 combined address and domain with their extra gunk
 type RFC822 struct {
-	id       int64
+	id       RowID
 	lpart    string
 	d_id     sql.NullInt64
 	a_trans  sql.NullInt64
@@ -46,7 +46,7 @@ func (a *RFC822) String() string {
 	var line strings.Builder
 
 	fmt.Fprintf(&line, "%s", a.lpart)
-	if a.d_id.Valid && a.d_id.Int64 != 0 {
+	if a.d_id.Valid {
 		fmt.Fprintf(&line, "@%s", a.name.String)
 	}
 	return line.String()
@@ -54,7 +54,7 @@ func (a *RFC822) String() string {
 
 // Target one each for each alias matched
 type Target struct {
-	id  int64 // id of alias row
+	id  RowID // id of alias row
 	ext sql.NullString
 	t   *RFC822
 }
@@ -118,7 +118,7 @@ FROM alias AS a
 JOIN address AS aa ON a.address = aa.id
 `
 	if len(lpart) == 0 && len(domain) == 0 { // slurp them all up
-		q += `WHERE ad_id != 0 ORDER BY a_id` // IS NOT NULL
+		q += `WHERE ad_id NOT NULL ORDER BY a_id`
 		rows, err = mdb.db.Query(q)
 	} else if len(lpart) == 0 && len(domain) >= 0 { // all in domain
 		q += `
@@ -161,10 +161,10 @@ FROM alias AS a
 JOIN address AS aa ON a.address = aa.id
 `
 	if len(alias) > 0 { // one specific
-		q += `WHERE a_local = ? AND ad_id == 0 ORDER BY a_id` // IS NULL...
+		q += `WHERE a_local = ? AND ad_id IS NULL ORDER BY a_id`
 		rows, err = mdb.db.Query(q, alias)
 	} else { // all of them
-		q += `WHERE ad_id = 0 ORDER BY a_id`
+		q += `WHERE ad_id IS NULL ORDER BY a_id`
 		rows, err = mdb.db.Query(q)
 	}
 	if err != nil {
@@ -251,7 +251,7 @@ func (mdb *MailDB) fillAlias(rows *sql.Rows) ([]*Alias, error) {
 			case nil:
 				break
 			default:
-				panic(err)
+				panic(fmt.Errorf("GetAliases: %s", err))
 			}
 			if td_id.Valid && td_id.Int64 != 0 { // do we have a domain for this target
 				qtd := `SELECT name, class, transport, rclass FROM domain WHERE id = ?`
@@ -262,6 +262,7 @@ func (mdb *MailDB) fillAlias(rows *sql.Rows) ([]*Alias, error) {
 				case nil:
 					break
 				default:
+					panic(fmt.Errorf("GetAliases: %s", err))
 				}
 			}
 			recp.t = &RFC822{
