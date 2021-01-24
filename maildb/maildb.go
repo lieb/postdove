@@ -31,8 +31,11 @@ import (
 // RowID - let's not have confusion over what Sqlite considers an INTEGER row id...
 type RowID int64
 
+type NullRowID sql.NullInt64
+
 type MailDB struct {
 	db         *sql.DB
+	tx         Tx
 	transports map[int64]*Transport
 }
 
