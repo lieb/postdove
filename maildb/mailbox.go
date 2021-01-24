@@ -31,7 +31,7 @@ import (
 
 // VMailbox
 type VMailbox struct {
-	id       RowID
+	id       int64
 	active   int64
 	user     string
 	dname    string
@@ -43,9 +43,10 @@ type VMailbox struct {
 }
 
 // GetVmailbox
+// return one or more matching mailboxes
 func (mdb *MailDB) GetVmailbox(vaddr string) ([]*VMailbox, error) {
 	var (
-		id       RowID
+		id       int64
 		active   int64
 		uid      sql.NullInt64
 		gid      sql.NullInt64
@@ -133,4 +134,115 @@ func (vm *VMailbox) String() string {
 	fmt.Fprintf(&line, "%s@%s:%s:%s:%s:%s",
 		vm.user, vm.dname, password, uid, gid, home)
 	return line.String()
+}
+
+// NewVmailbox
+func (mdb *MailDB) NewVmailbox(vaddr string, password sql.NullString,
+	uid sql.NullInt64, gid sql.NullInt64, home sql.NullString) (*VMailbox, error) {
+	var (
+		err      error
+		res      sql.Result
+		row      *sql.Row
+		ap       *AddressParts
+		addr     *Address
+		m_id     int64
+		rowCount int64
+	)
+	if ap, err = DecodeRFC822(vaddr); err != nil {
+		return nil, fmt.Errorf("NewVmailbox: %s", err)
+	}
+	if ap.domain == "" {
+		return nil, fmt.Errorf("NewVmailbox: Mailbox must have a domain")
+	}
+	// Enter a transaction for everything else
+	if mdb.tx, err = mdb.db.Begin(); err != nil {
+		return nil, fmt.Errorf("NewVmailbox: Begin, %s", err)
+	}
+	defer func() {
+		if err == nil {
+			if err = mdb.tx.Commit(); err != nil {
+				panic(fmt.Errorf("NewVmailbox: Commit, %s", err)) // really screwed...
+			}
+		} else {
+			mdb.tx.Rollback()
+		}
+	}()
+	// The domain must exist. All that dovecot wiring must be in place first
+	// Think of this as a spellcheck...
+	row = mdb.db.QueryRow("SELECT COUNT(*) FROM domain WHERE name = ?", ap.domain)
+	switch err = row.Scan(&rowCount); err {
+	case sql.ErrNoRows:
+		return nil, fmt.Errorf("NewVmailbox: No such virtual domain")
+	case nil:
+		if rowCount != 1 {
+			return nil, fmt.Errorf("NewVmailbox: virtual domain must exist first!")
+		}
+	default:
+		return nil, fmt.Errorf("NewVmailbox: %s", err)
+	}
+	if addr, err = mdb.lookupAddress(ap); err != nil {
+		return nil, fmt.Errorf("NewVmailbox: address lookup, %s", err)
+	}
+	if addr == nil { // must be new user
+		if addr, err = mdb.insertAddress(ap); err != nil {
+			return nil, fmt.Errorf("NewVmailbox: new address, %s", err)
+		}
+	} else { // make sure it's not an alias
+		row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", addr.id)
+		switch err = row.Scan(&rowCount); err {
+		case sql.ErrNoRows:
+			return nil, fmt.Errorf("NewVmailbox: count(alias) failed, %s", err)
+		case nil:
+			if rowCount > 0 {
+				return nil, fmt.Errorf("NewVmailbox: Already an alias")
+			}
+		default:
+			return nil, fmt.Errorf("NewVmailbox: select count, %s", err)
+		}
+	}
+
+	// Now we can insert the mailbox.
+
+	res, err = mdb.tx.Exec("INSERT INTO vmailbox (id, uid, gid, home, password) VALUES (?, ?, ?, ?, ?)",
+		addr.id, uid, gid, home, password)
+	if err != nil { // we'll be rolling back the new address we just created...
+		return nil, fmt.Errorf("NewVmailbox: could not insert new mailbox, %s", err)
+	}
+	if m_id, err = res.LastInsertId(); err != nil {
+		return nil, fmt.Errorf("Newmailbox: Cannot get id of new mailbox, %s", err)
+	}
+	vm := &VMailbox{
+		id:       m_id,
+		active:   1, // start off enabled or disabled??
+		user:     ap.lpart,
+		dname:    ap.domain,
+		uid:      uid,
+		gid:      gid,
+		home:     home,
+		password: password,
+		d_id:     addr.domain,
+	}
+	return vm, nil
+}
+
+// ChangePassword
+
+// EnableVmailbox
+func (mdb *MailDB) EnableVmailbox(vaddr string) error {
+	return nil
+}
+
+// DisableVmailbox
+func (mdb *MailDB) DisableVmailbox(vaddr string) error {
+	return nil
+}
+
+// ActiveVmailbox
+func (mdb *MailDB) ActiveVmailbox(vaddr string) (bool, error) {
+	return false, nil
+}
+
+//RemoveVmailbox
+func (mdb *MailDB) RemoveVmailbox(vaddr string) error {
+	return nil
 }
