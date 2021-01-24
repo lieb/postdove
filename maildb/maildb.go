@@ -25,17 +25,27 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3" // do I really need this here?
+	"github.com/mattn/go-sqlite3" // do I really need this here?
 )
 
-// RowID - let's not have confusion over what Sqlite considers an INTEGER row id...
-type RowID int64
+// Sqlite3 errors we are interested in
 
-type NullRowID sql.NullInt64
+func IsErrConstraint(err error) bool {
+	if e, ok := err.(sqlite3.Error); ok {
+		if e.Code == sqlite3.ErrConstraint &&
+			e.ExtendedCode == sqlite3.ErrConstraintForeignKey {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		panic(err)
+	}
+}
 
 type MailDB struct {
 	db         *sql.DB
-	tx         Tx
+	tx         *sql.Tx
 	transports map[int64]*Transport
 }
 
@@ -116,4 +126,146 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 		domain:    dom,
 		extension: ext,
 	}, nil
+}
+
+// DB query/insert helpers
+
+type Address struct {
+	id        int64
+	localpart string
+	domain    sql.NullInt64
+	transport sql.NullInt64
+	rclass    sql.NullString
+	access    sql.NullInt64
+}
+
+// lookupAddress
+// helper to find 'lpart@domain' and return an address id.
+// return nil, nil for "not found"
+// return nil, err for bad stuff
+func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
+	var (
+		domID sql.NullInt64
+		row   *sql.Row
+		err   error
+	)
+
+	if ap.domain == "" { // An /etc/aliases entry
+		domID = sql.NullInt64{
+			Valid: false,
+			Int64: 0,
+		}
+	} else { // A Virtual alias entry
+		row = mdb.db.QueryRow("SELECT id FROM domain WHERE name = ?", ap.domain)
+		switch err = row.Scan(&domID); err {
+		case sql.ErrNoRows:
+			return nil, nil // no such domain so not found address
+		case nil: // existing domain
+			break
+		default:
+			return nil, fmt.Errorf("lookupAddress: select address domain, %s", err)
+		}
+	}
+	addr := &Address{}
+	qa := `
+SELECT id, localpart, domain, transport, rclass, access
+FROM address WHERE localpart = ? AND domain = ?
+`
+	row = mdb.db.QueryRow(qa, ap.lpart, domID)
+	switch err = row.Scan(&addr.id, &addr.localpart, &addr.domain,
+		&addr.transport, &addr.rclass, &addr.access); err {
+	case sql.ErrNoRows:
+		return nil, nil // not found address in this domain
+	case nil:
+		return addr, nil
+	default:
+		return nil, fmt.Errorf("lookupAddress: select address localpart, %s", err)
+	}
+}
+
+// insertAddress
+// Insert an address under a transaction
+func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
+	var (
+		domID  sql.NullInt64
+		addr   *Address
+		addrID int64
+		row    *sql.Row
+		err    error
+	)
+
+	if ap.domain == "" { // An /etc/aliases entry
+		domID = sql.NullInt64{
+			Valid: false,
+			Int64: 0,
+		}
+	} else { // A Virtual alias entry
+		row = mdb.db.QueryRow("SELECT id FROM domain WHERE name = ?", ap.domain)
+		switch err = row.Scan(&domID); err {
+		case sql.ErrNoRows: // Make a new virtual domain, assume its class is the default...
+			res, err := mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", ap.domain)
+			if err != nil {
+				return nil, fmt.Errorf("insertAddress: new domain, %s", err)
+			}
+			if id, err := res.LastInsertId(); err == nil {
+				domID = sql.NullInt64{
+					Valid: true,
+					Int64: id,
+				}
+			} else {
+				return nil, fmt.Errorf(
+					"insertAddress: Cannot get id of new domain, %s", err)
+			}
+		case nil: // existing domain
+			break
+		default:
+			return nil, fmt.Errorf("insertAddress: select alias domain, %s", err)
+		}
+	}
+	row = mdb.db.QueryRow("SELECT id FROM address WHERE localpart = ? AND domain = ?",
+		ap.lpart, domID)
+	switch err = row.Scan(&addrID); err {
+	case sql.ErrNoRows: // Make a new alias
+		res, err := mdb.tx.Exec("INSERT INTO address (localpart, domain) VALUES (?, ?)",
+			ap.lpart, domID)
+		if err != nil {
+			return nil, fmt.Errorf("insertAddress: new alias, %s", err)
+		}
+		if addrID, err = res.LastInsertId(); err != nil {
+			return nil, fmt.Errorf("insertAddress: cannot get id of new alias, %s", err)
+		}
+	case nil: // already exists.
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("insertAddress: select alias localpart, %s", err)
+	}
+	addr = &Address{ // the rest of Address is not init'd. DB may have other defaults
+		id:     addrID,
+		domain: domID,
+	}
+	return addr, nil
+}
+
+// deleteAddress
+func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
+	addr, err := mdb.lookupAddress(ap)
+	if err != nil {
+		fmt.Errorf("deleteAddress: %s", err)
+	}
+	return mdb.deleteAddressByID(addr)
+}
+
+// deleteAddressByID
+func (mdb *MailDB) deleteAddressByID(addr *Address) error {
+	_, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
+	if err != nil && IsErrConstraint(err) { //
+		return fmt.Errorf("deleteAddressByID: delete address, %s", err)
+	}
+	if addr.domain.Valid { // See if we can delete the domain too
+		_, err = mdb.tx.Exec("DELETE FROM domain WHERE id = ?", addr.domain.Int64)
+		if err != nil && IsErrConstraint(err) {
+			return fmt.Errorf("deleteAddressByID: delete domain, %s", err)
+		}
+	}
+	return nil
 }
