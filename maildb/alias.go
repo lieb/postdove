@@ -30,7 +30,7 @@ import (
 
 // RFC822 combined address and domain with their extra gunk
 type RFC822 struct {
-	id       RowID
+	id       int64
 	lpart    string
 	d_id     sql.NullInt64
 	a_trans  sql.NullInt64
@@ -54,7 +54,7 @@ func (a *RFC822) String() string {
 
 // Target one each for each alias matched
 type Target struct {
-	id  RowID // id of alias row
+	id  int64 // id of alias row
 	ext sql.NullString
 	t   *RFC822
 }
@@ -178,7 +178,7 @@ JOIN address AS aa ON a.address = aa.id
 func (mdb *MailDB) fillAlias(rows *sql.Rows) ([]*Alias, error) {
 	var (
 		err       error
-		curr_id   int64 = 0 // rowids start at 1...
+		curr_id   int64
 		al        *Alias
 		res       []*Alias
 		id        int64
@@ -242,7 +242,7 @@ func (mdb *MailDB) fillAlias(rows *sql.Rows) ([]*Alias, error) {
 			id:  id,
 			ext: ext,
 		}
-		if t_id.Valid && t_id.Int64 != 0 { // is it local+ext or ext?
+		if t_id.Valid { // is it local+ext or ext?
 			qt := `SELECT localpart, domain, transport, rclass FROM address WHERE id = ?`
 			row := mdb.db.QueryRow(qt, t_id.Int64)
 			switch err := row.Scan(&t_local, &td_id, &t_trans, &t_rclass); err {
@@ -298,4 +298,268 @@ func (al *Alias) String() string {
 		commas++
 	}
 	return line.String()
+}
+
+// MakeAlias
+// This is not 'NewAlias' because we can add recipients to an already made alias
+func (mdb *MailDB) MakeAlias(alias string, recipient string) error {
+	var (
+		err        error
+		aliasParts *AddressParts
+		recipParts *AddressParts
+		aliasAddr  *Address
+		recipAddr  *Address
+	)
+	if aliasParts, err = DecodeRFC822(alias); err != nil {
+		return fmt.Errorf("MakeAlias: alias, %s", err)
+	}
+	if recipParts, err = DecodeTarget(recipient); err != nil {
+		return fmt.Errorf("MakeAlias: recipient, %s", err)
+	}
+	// Enter a transaction for everything else
+	if mdb.tx, err = mdb.db.Begin(); err != nil {
+		return fmt.Errorf("MakeAlias: begin, %s", err)
+	}
+	defer func() {
+		if err == nil {
+			if err = mdb.tx.Commit(); err != nil {
+				panic(fmt.Errorf("MakeAlias: commit, %s", err)) // we are screwed
+			}
+		} else {
+			mdb.tx.Rollback()
+		}
+	}()
+	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
+		return fmt.Errorf("MakeAlias: alias, %s", err)
+	}
+	if aliasAddr == nil { // no such, make one
+		if aliasAddr, err = mdb.insertAddress(aliasParts); err != nil {
+			return fmt.Errorf("MakeAlias: alias, %s", err)
+		}
+	}
+	// We now have the alias address part, either brand new or an existing
+	// Now find the target.
+	if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
+		return fmt.Errorf("MakeAlias: target, %s", err)
+	}
+	if recipAddr == nil {
+		if recipAddr, err = mdb.insertAddress(recipParts); err != nil {
+			return fmt.Errorf("MakeAlias: target %s", err)
+		}
+	} else { // this addr already exists. Is it at the target end of an alias and is that a dup?
+		var (
+			id int64
+			e  sql.NullString
+		)
+		qal := `SELECT id, extension FROM alias WHERE address = ? AND target = ?`
+		rows, err := mdb.db.Query(qal, aliasAddr.id, recipAddr.id)
+		for rows.Next() {
+			if err = rows.Scan(&id, &e); err != nil {
+				return fmt.Errorf("MakeAlias: alias scan, %s", err)
+			}
+			if (!e.Valid && recipParts.extension == "") ||
+				(e.Valid && e.String == recipParts.extension) {
+				return fmt.Errorf("MakeAlias: alias to this extension already exists")
+			}
+		}
+	}
+	// Now have both, no dups, make the link
+	ext := sql.NullString{Valid: false}
+	if recipParts.extension != "" {
+		ext.Valid = true
+		ext.String = recipParts.extension
+	}
+	_, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
+		aliasAddr.id, recipAddr.id, ext)
+	if err != nil {
+		return fmt.Errorf("MakeAlias: insert alias, %s", err)
+	}
+	return nil
+}
+
+// IsAlias
+func (mdb *MailDB) IsAlias(alias string) (bool, error) {
+	var (
+		aliasAddr  *Address
+		aliasParts *AddressParts
+		row        *sql.Row
+		err        error
+		count      int
+	)
+	if aliasParts, err = DecodeRFC822(alias); err != nil {
+		return false, fmt.Errorf("IsAlias: alias, %s", err)
+	}
+	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
+		return false, fmt.Errorf("IsAlias: alias, %s", err)
+	}
+	if aliasAddr == nil {
+		return false, fmt.Errorf("IsAlias: no such address")
+	}
+	row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", aliasAddr.id)
+	switch err = row.Scan(&count); err {
+	case sql.ErrNoRows:
+		return false, fmt.Errorf("IsAlias: scan, %s", err)
+	case nil:
+		if count > 0 {
+			return true, nil
+		} else {
+			return false, nil
+		}
+	default:
+		return false, fmt.Errorf("IsAlias: default, %s", err)
+	}
+}
+
+// RemoveAlias and all its targets
+func (mdb *MailDB) RemoveAlias(alias string) error {
+	var (
+		err        error
+		aliasParts *AddressParts
+		aliasAddr  *Address
+		recipAddr  *Address
+		aliasCnt   int
+		aliasID    int64
+		targetID   sql.NullInt64
+		ext        sql.NullString
+	)
+	if aliasParts, err = DecodeRFC822(alias); err != nil {
+		return fmt.Errorf("RemoveAlias: alias, %s", err)
+	}
+
+	// Enter a transaction for everything else
+	if mdb.tx, err = mdb.db.Begin(); err != nil {
+		return fmt.Errorf("RemoveAlias: begin, %s", err)
+	}
+	defer func() {
+		if err == nil {
+			if err = mdb.tx.Commit(); err != nil {
+				panic(fmt.Errorf("RemoveAlias: commit, %s", err)) // we are screwed
+			}
+		} else {
+			mdb.tx.Rollback()
+		}
+	}()
+	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
+		return fmt.Errorf("RemoveAlias: alias, %s", err)
+	}
+	if aliasAddr == nil {
+		return fmt.Errorf("RemoveAlias: no such alias")
+	}
+	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
+	rows, err := mdb.db.Query(qa, aliasAddr.id)
+	for rows.Next() {
+		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
+			return fmt.Errorf("RemoveAlias: alias scan, %s", err)
+		}
+		aliasCnt++
+		_, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID)
+		if err != nil {
+			return fmt.Errorf("RemoveAlias: delete alias, %s", err)
+		}
+		if targetID.Valid {
+			err = mdb.deleteAddressByID(recipAddr)
+			if err != nil {
+				return fmt.Errorf("RemoveAlias: delete recipient, %s", err)
+			}
+		}
+	}
+	if aliasCnt > 0 { // Found aliases so delete address
+		err = mdb.deleteAddressByID(aliasAddr)
+		if err != nil {
+			return fmt.Errorf("RemoveAlias: delete alias address, %s", err)
+		}
+	} else {
+		return fmt.Errorf("RemoveAlias: address is not an alias")
+	}
+	return nil
+}
+
+// RemoveRecipient. Remove the alias as well if this is the last target
+func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
+	var (
+		err        error
+		aliasParts *AddressParts
+		recipParts *AddressParts
+		aliasAddr  *Address
+		recipAddr  *Address
+		foundit    bool = false
+		aliasCnt   int
+		aliasID    int64
+		targetID   sql.NullInt64
+		ext        sql.NullString
+	)
+	if aliasParts, err = DecodeRFC822(alias); err != nil {
+		return fmt.Errorf("RemoveRecipient: alias, %s", err)
+	}
+	if recipParts, err = DecodeTarget(recipient); err != nil {
+		return fmt.Errorf("RemoveRecipient: recipient, %s", err)
+	}
+
+	// Enter a transaction for everything else
+	if mdb.tx, err = mdb.db.Begin(); err != nil {
+		return fmt.Errorf("RemoveRecipient: begin, %s", err)
+	}
+	defer func() {
+		if err == nil {
+			if err = mdb.tx.Commit(); err != nil {
+				panic(fmt.Errorf("RemoveRecipient: commit, %s", err)) // we are screwed
+			}
+		} else {
+			mdb.tx.Rollback()
+		}
+	}()
+	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
+		return fmt.Errorf("RemoveRecipient: alias, %s", err)
+	}
+	if aliasAddr == nil {
+		return fmt.Errorf("RemoveRecipient: no such alias")
+	}
+	if recipParts.domain != "" { // not a file, filter, or include. no address to see
+		if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
+			return fmt.Errorf("RemoveRecipient: recipient, %s", err)
+		}
+		if recipAddr == nil {
+			return fmt.Errorf("RemoveRecipient: no such recipient")
+		}
+	}
+	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
+	rows, err := mdb.db.Query(qa, aliasAddr.id)
+	for rows.Next() {
+		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
+			return fmt.Errorf("RemoveRecipient: alias scan, %s", err)
+		}
+		aliasCnt++
+		if !foundit {
+			if recipParts.domain != "" { // a target with possible '+' ext
+				if targetID.Valid && targetID.Int64 == recipAddr.id {
+					foundit = true
+				}
+			} else { // looking for a file/pipe/include only
+				if !targetID.Valid && ext.Valid && ext.String == recipParts.extension {
+					foundit = true
+				}
+			}
+		}
+	}
+	if foundit {
+		_, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID)
+		if err != nil {
+			return fmt.Errorf("RemoveRecipient: delete alias, %s", err)
+		}
+		if targetID.Valid {
+			err = mdb.deleteAddressByID(recipAddr)
+			if err != nil {
+				return fmt.Errorf("RemoveRecipient: delete recipient, %s", err)
+			}
+		}
+		if aliasCnt <= 1 { // last one, remove the alias address too
+			err = mdb.deleteAddressByID(aliasAddr)
+			if err != nil {
+				return fmt.Errorf("RemoveRecipient: delete alias address, %s", err)
+			}
+		}
+	} else {
+		return fmt.Errorf("RemoveRecipient: recipient not found in alias")
+	}
+	return nil
 }
