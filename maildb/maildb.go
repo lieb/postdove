@@ -44,17 +44,33 @@ func IsErrConstraint(err error) bool {
 }
 
 type MailDB struct {
-	db         *sql.DB
-	tx         *sql.Tx
-	transports map[int64]*Transport
+	db *sql.DB
+	tx *sql.Tx
 }
 
-func NewMailDB(db *sql.DB) *MailDB {
-	mdb := &MailDB{
-		db:         db,
-		transports: make(map[int64]*Transport),
+// NewMailDB
+// Sqlite DB open.  ":memory:" for testing...
+func NewMailDB(dbPath string) (*MailDB, error) {
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("NewMailDB: open, %s", err)
 	}
-	return mdb
+	// force pragmas
+	if _, err = db.Exec("PRAGMA foreign_keys=ON;"); err != nil {
+		emsg := fmt.Errorf("NewMailDB: exec pragma, %s", err)
+		if err = db.Close(); err != nil {
+			return nil, fmt.Errorf("NewMailDB: pragma error %s, close %s", emsg, err)
+		}
+	}
+	mdb := &MailDB{
+		db: db,
+	}
+	return mdb, nil
+}
+
+// Close
+func (mdb *MailDB) Close() {
+	mdb.db.Close()
 }
 
 // AddressParts
