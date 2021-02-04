@@ -77,7 +77,9 @@ func TestTarget(t *testing.T) {
 		{"foo", "foo", "", ""},
 		{"foo@baz", "foo", "baz", ""},
 		{"foo+bar@baz", "foo", "baz", "bar"},
+		{"Foo+baR@bAz", "foo", "baz", "bar"},
 		{"| cat foo", "", "", "| cat foo"},
+		{"| cat Foo", "", "", "| cat Foo"},
 		{"/dev/null", "", "", "/dev/null"},
 		{":include:everybody.txt", "", "", ":include:everybody.txt"},
 	}
@@ -105,7 +107,7 @@ func TestTarget(t *testing.T) {
 	ap, err = DecodeTarget(":bogus:")
 	if err == nil {
 		t.Errorf(":bogus: did not throw illegal char error")
-	} else if err.Error() != "DecodeTarget: \":bogus:\" is badly formed include" {
+	} else if err.Error() != "DecodeTarget: badly formed or empty include" {
 		t.Errorf("DecodeTarget: unexpected err code: %s", err)
 	}
 }
