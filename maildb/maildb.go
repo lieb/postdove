@@ -30,7 +30,10 @@ import (
 
 // Sqlite3 errors we are interested in
 
-func IsErrConstraint(err error) bool {
+// IsErrConstraintForeignKey
+// attempting insert with either non-existent ref or
+// delete with refs pointing to it.
+func IsErrConstraintForeignKey(err error) bool {
 	if e, ok := err.(sqlite3.Error); ok {
 		if e.Code == sqlite3.ErrConstraint &&
 			e.ExtendedCode == sqlite3.ErrConstraintForeignKey {
@@ -43,6 +46,35 @@ func IsErrConstraint(err error) bool {
 	}
 }
 
+// IsErrConstraintUnique
+func IsErrConstraintUnique(err error) bool {
+	if e, ok := err.(sqlite3.Error); ok {
+		if e.Code == sqlite3.ErrConstraint &&
+			e.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		panic(err)
+	}
+}
+
+// IsErrConstraintNotNull
+func IsErrConstraintNotNull(err error) bool {
+	if e, ok := err.(sqlite3.Error); ok {
+		if e.Code == sqlite3.ErrConstraint &&
+			e.ExtendedCode == sqlite3.ErrConstraintNotNull {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		panic(err)
+	}
+}
+
+// MailDB
 type MailDB struct {
 	db *sql.DB
 	tx *sql.Tx
@@ -59,7 +91,8 @@ func NewMailDB(dbPath string) (*MailDB, error) {
 	if _, err = db.Exec("PRAGMA foreign_keys=ON;"); err != nil {
 		emsg := fmt.Errorf("NewMailDB: exec pragma, %s", err)
 		if err = db.Close(); err != nil {
-			return nil, fmt.Errorf("NewMailDB: pragma error %s, close %s", emsg, err)
+			return nil, fmt.Errorf("NewMailDB: pragma error %s, close %s",
+				emsg, err)
 		}
 	}
 	mdb := &MailDB{
@@ -274,12 +307,12 @@ func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
 // deleteAddressByID
 func (mdb *MailDB) deleteAddressByID(addr *Address) error {
 	_, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
-	if err != nil && IsErrConstraint(err) { //
+	if err != nil && IsErrConstraintForeignKey(err) { //
 		return fmt.Errorf("deleteAddressByID: delete address, %s", err)
 	}
 	if addr.domain.Valid { // See if we can delete the domain too
 		_, err = mdb.tx.Exec("DELETE FROM domain WHERE id = ?", addr.domain.Int64)
-		if err != nil && IsErrConstraint(err) {
+		if err != nil && IsErrConstraintForeignKey(err) {
 			return fmt.Errorf("deleteAddressByID: delete domain, %s", err)
 		}
 	}
