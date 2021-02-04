@@ -174,6 +174,25 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 	}
 }
 
+type TransParts struct {
+	transport string
+	nexthop   string
+}
+
+// DecodeTransport
+func DecodeTransport(trans string) (*TransParts, error) {
+	i := strings.Index(trans, ":")
+	if i >= 0 {
+		t := &TransParts{
+			transport: trans[0:i],
+			nexthop:   trans[i+1:],
+		}
+		return t, nil
+	} else {
+		return nil, fmt.Errorf("DecodeTransport: No ':' separator")
+	}
+}
+
 // DB query/insert helpers
 
 type Address struct {
