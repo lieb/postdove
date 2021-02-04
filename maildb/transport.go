@@ -34,10 +34,7 @@ type Transport struct {
 	aname     sql.NullString
 	id        int64
 	transport sql.NullString
-	nexthop   sql.NullInt64
-	nextname  sql.NullString
-	mx        sql.NullInt64 // default 1 (true)
-	port      sql.NullInt64
+	nexthop   sql.NullString
 }
 
 // GetTransport
@@ -63,16 +60,7 @@ func (mdb *MailDB) GetTransport(recip string) ([]*Transport, error) {
 		t_list []*Transport
 	)
 
-	q := `
-SELECT DISTINCT t.id AS id, t.transport AS trans, t.nexthop AS next,
-       CASE WHEN t.nexthop IS NULL
-       THEN NULL
-       ELSE
-         (SELECT name FROM domain WHERE id = t.nexthop)
-       END AS nextname,
-       t.mx AS mx, t.port AS port
-FROM transport AS t
-`
+	q := `SELECT DISTINCT id, transport, nexthop FROM transport `
 	if recip == "" { // Get all transports
 		rows, err = mdb.db.Query(q)
 	} else {
@@ -84,21 +72,12 @@ FROM transport AS t
 				recip, err)
 		}
 		if len(ap.lpart) > 0 && len(ap.domain) == 0 { // assume lpart is @domain
-			aname = sql.NullString{
-				Valid:  true,
-				String: ap.lpart,
-			}
+			aname = sql.NullString{Valid: true, String: ap.lpart}
 			qd := `SELECT transport FROM domain WHERE name = ?`
 			row = mdb.db.QueryRow(qd, ap.lpart)
 		} else { // it is user@domain
-			lpart = sql.NullString{
-				Valid:  true,
-				String: ap.lpart,
-			}
-			aname = sql.NullString{
-				Valid:  true,
-				String: ap.domain,
-			}
+			lpart = sql.NullString{Valid: true, String: ap.lpart}
+			aname = sql.NullString{Valid: true, String: ap.domain}
 			qa := `
 SELECT CASE WHEN a.transport IS NULL
        THEN d.transport ELSE NULL END AS trans
@@ -128,12 +107,9 @@ WHERE a.localpart = ? AND a.domain = d.id AND d.name = ?
 		var (
 			id        int64
 			transport sql.NullString
-			nexthop   sql.NullInt64
-			nextname  sql.NullString
-			mx        sql.NullInt64
-			port      sql.NullInt64
+			nexthop   sql.NullString
 		)
-		err = rows.Scan(&id, &transport, &nexthop, &nextname, &mx, &port)
+		err = rows.Scan(&id, &transport, &nexthop)
 		if err != nil {
 			return nil, fmt.Errorf("GetTransport: scan, %s", err)
 		}
@@ -168,11 +144,12 @@ WHERE a.domain = d.id AND a.transport = ?
 			id:        id,
 			transport: transport,
 			nexthop:   nexthop,
-			nextname:  nextname,
-			mx:        mx,
-			port:      port,
 		}
 		t_list = append(t_list, t)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("GetTransport: Next loop, %s", err)
 	}
 	return t_list, nil
 }
@@ -193,15 +170,8 @@ func (t *Transport) String() string {
 	} else {
 		fmt.Fprintf(&line, ":")
 	}
-	if t.nextname.Valid {
-		if t.mx.Valid && t.mx.Int64 == 0 {
-			fmt.Fprintf(&line, "[%s]", t.nextname.String)
-		} else {
-			fmt.Fprintf(&line, "%s", t.nextname.String)
-		}
-		if t.port.Valid {
-			fmt.Fprintf(&line, ":%d", t.port.Int64)
-		}
+	if t.nexthop.Valid {
+		fmt.Fprintf(&line, "%s", t.nexthop.String)
 	}
 	return line.String()
 }
