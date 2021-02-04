@@ -111,3 +111,43 @@ func TestTarget(t *testing.T) {
 		t.Errorf("DecodeTarget: unexpected err code: %s", err)
 	}
 }
+
+type TransportRes struct {
+	trans     string
+	transport string
+	nexthop   string
+}
+
+// TestTransport
+func TestTransport(t *testing.T) {
+	fmt.Printf("Transport Decode Test\n")
+
+	res := []TransportRes{
+		{":", "", ""},
+		{"smtp:", "smtp", ""},
+		{":some.domain", "", "some.domain"},
+		{"uucp:example.com", "uucp", "example.com"},
+		{"relay:[gateway.com]", "relay", "[gateway.com]"},
+		{"smtp:bar.example.com:25", "smtp", "bar.example.com:25"},
+		{"error:mail for you bounces", "error", "mail for you bounces"},
+	}
+	var (
+		tr  *TransParts
+		err error
+	)
+
+	for _, r := range res {
+		tr, err = DecodeTransport(r.trans)
+		if err != nil {
+			t.Errorf("Parsing \"%s\" throws an error %s", r.trans, err)
+		}
+		if tr.transport != r.transport || tr.nexthop != r.nexthop {
+			t.Errorf("%s, transport = %s, nexthop = %s",
+				r.trans, tr.transport, tr.nexthop)
+		}
+	}
+	tr, err = DecodeTransport("foo")
+	if err == nil {
+		t.Errorf("foo: did not throw a no separator error")
+	}
+}
