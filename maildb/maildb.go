@@ -141,40 +141,37 @@ func DecodeRFC822(addr string) (*AddressParts, error) {
 
 // DecodeTarget Decode an RFC822 address and the various options for extensions
 func DecodeTarget(addr string) (*AddressParts, error) {
-	var (
-		loc string = ""
-		dom string = ""
-		ext string = ""
-	)
-	ap, err := DecodeRFC822(addr)
-	if err != nil {
-		return nil, fmt.Errorf("DecodeTarget: %s", err)
+	ap := &AddressParts{
+		lpart:     "",
+		domain:    "",
+		extension: addr,
 	}
-	if strings.Contains(ap.lpart, "+") { // we have an address extension
-		pl := strings.Index(ap.lpart, "+")
-		loc = ap.lpart[0:pl]
-		ext = ap.lpart[pl+1:]
-		dom = ap.domain
-	} else if ap.lpart[0] == '/' || ap.lpart[0] == '|' { // a local pipe or file redirect
-		if ap.domain != "" { // can't have a domain for /etc/aliases targets
-			return nil, fmt.Errorf("DecodeTarget: %s cannot have a domain for locals",
-				addr)
+	if addr[0] == '/' || addr[0] == '|' { // a local pipe or file redirect
+		if len(addr) > 1 {
+			return ap, nil
+		} else {
+			return nil, fmt.Errorf("DecodeTarget: no local pipe or redirect")
 		}
-		ext = ap.lpart
-	} else if ap.lpart[0] == ':' { // an include
-		if len(ap.lpart) < 10 || ap.lpart[:9] != ":include:" { // bad include
-			return nil, fmt.Errorf("DecodeTarget: \"%s\" is badly formed include",
-				ap.lpart)
+	} else if addr[0] == ':' {
+		if len(addr) > 10 && addr[:9] == ":include:" { // an include
+			return ap, nil
+		} else {
+			return nil, fmt.Errorf("DecodeTarget: badly formed or empty include")
 		}
-		ext = ap.lpart
-	} else { // target is a clean RFC822
+	} else {
+		ap, err := DecodeRFC822(addr)
+		if err != nil {
+			return nil, fmt.Errorf("DecodeTarget: %s", err)
+		}
+		if strings.Contains(ap.lpart, "+") { // we have an address extension
+			pl := strings.Index(ap.lpart, "+")
+			loc := ap.lpart[0:pl]
+			ext := ap.lpart[pl+1:]
+			ap.lpart = loc
+			ap.extension = ext
+		}
 		return ap, nil
 	}
-	return &AddressParts{
-		lpart:     loc,
-		domain:    dom,
-		extension: ext,
-	}, nil
 }
 
 // DB query/insert helpers
