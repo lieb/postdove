@@ -175,3 +175,136 @@ func (t *Transport) String() string {
 	}
 	return line.String()
 }
+
+// NewTransport
+func (mdb *MailDB) NewTransport(t string) error {
+	var (
+		err     error
+		tr      *TransportParts
+		trans   sql.NullString
+		nexthop sql.NullString
+	)
+
+	if tr, err = DecodeTransport(t); err != nil {
+		return fmt.Errorf("NewTransport: %s", err)
+	}
+	if tr.transport == "" {
+		trans = sql.NullString{Valid: false}
+	} else {
+		trans = sql.NullString{Valid: true, String: tr.transport}
+	}
+	if tr.nexthop == "" {
+		nexthop = sql.NullString{Valid: false}
+	} else {
+		nexthop = sql.NullString{Valid: true, String: tr.nexthop}
+	}
+	// Enter a transaction for everything else
+	if mdb.tx, err = mdb.db.Begin(); err != nil {
+		return fmt.Errorf("MakeAlias: begin, %s", err)
+	}
+	defer func() {
+		if err == nil {
+			if err = mdb.tx.Commit(); err != nil {
+				panic(fmt.Errorf("MakeAlias: commit, %s", err)) // we are screwed
+			}
+		} else {
+			mdb.tx.Rollback()
+		}
+	}()
+	_, err = mdb.tx.Exec("INSERT INTO transport (transport, nexthop) VALUES( ?, ?)",
+		trans, nexthop)
+	if err != nil {
+		return fmt.Errorf("NewTransport: insert, %s", err)
+	}
+	return nil
+}
+
+// AttachTransport
+// for smtp and lmtp transports, we can have an ordered list of destinations
+// ex: smtp:dest1, dest2, ...
+// where dest1 is tried first and destN if dest1 fails
+func (mdb *MailDB) AttachTransport(addr string, t string) error {
+	var (
+		err     error
+		ap      *AddressParts
+		tr      *TransportParts
+		row     *sql.Row
+		trans   sql.NullString
+		nexthop sql.NullString
+		tID     int64
+	)
+
+	if ap, err = DecodeRFC822(addr); err != nil {
+		return fmt.Errorf("AttachTransport: %s", err)
+	}
+	if tr, err = DecodeTransport(t); err != nil {
+		return fmt.Errorf("AttachTransport: %s", err)
+	}
+	if tr.transport == "" {
+		trans = sql.NullString{Valid: false}
+	} else {
+		trans = sql.NullString{Valid: true, String: tr.transport}
+	}
+	if tr.nexthop == "" {
+		nexthop = sql.NullString{Valid: false}
+	} else {
+		nexthop = sql.NullString{Valid: true, String: tr.nexthop}
+	}
+	// Enter a transaction for everything else
+	if mdb.tx, err = mdb.db.Begin(); err != nil {
+		return fmt.Errorf("AttachTransport: begin, %s", err)
+	}
+	defer func() {
+		if err == nil {
+			if err = mdb.tx.Commit(); err != nil {
+				panic(fmt.Errorf("AttachTransport: commit, %s", err))
+				// we are screwed
+			}
+		} else {
+			mdb.tx.Rollback()
+		}
+	}()
+	row = mdb.db.QueryRow(
+		"SELECT id FROM transport WHERE transport = ? and nexthop = ?",
+		trans, nexthop)
+	switch err = row.Scan(&tID); err {
+	case sql.ErrNoRows:
+		return fmt.Errorf("AttachTransport: transport does not exist")
+	case nil:
+		break
+	default:
+		return fmt.Errorf("AttachTransport: select transport, %s", err)
+	}
+	if ap.domain == "" { // lpart is really a domain in this context so attach to it
+		var dID int64
+
+		row = mdb.db.QueryRow("SELECT id FROM domain WHERE name = ?", ap.lpart)
+		switch err = row.Scan(&dID); err {
+		case sql.ErrNoRows:
+			return fmt.Errorf("AttachTransport: domain does not exist")
+		case nil:
+			break
+		default:
+			fmt.Errorf("AttachTransport: select domain, %s", err)
+		}
+		_, err = mdb.tx.Exec("UPDATE domain SET transport = ? WHERE id = ?",
+			tID, dID)
+		if err != nil {
+			return fmt.Errorf("AttachTransport: update domain, %s", err)
+		}
+	} else { // a user@domain specific transport
+		var (
+			a *Address
+		)
+
+		if a, err = mdb.lookupAddress(ap); err != nil {
+			return fmt.Errorf("AttachTransport: %s", err)
+		}
+		_, err = mdb.tx.Exec("UPDATE address SET transport = ? WHERE id = ?",
+			tID, a.id)
+		if err != nil {
+			return fmt.Errorf("AttachTransport: update address, %s", err)
+		}
+	}
+	return nil
+}
