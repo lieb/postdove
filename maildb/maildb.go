@@ -174,16 +174,16 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 	}
 }
 
-type TransParts struct {
+type TransportParts struct {
 	transport string
 	nexthop   string
 }
 
 // DecodeTransport
-func DecodeTransport(trans string) (*TransParts, error) {
+func DecodeTransport(trans string) (*TransportParts, error) {
 	i := strings.Index(trans, ":")
 	if i >= 0 {
-		t := &TransParts{
+		t := &TransportParts{
 			transport: trans[0:i],
 			nexthop:   trans[i+1:],
 		}

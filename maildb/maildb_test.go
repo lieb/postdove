@@ -132,7 +132,7 @@ func TestTransport(t *testing.T) {
 		{"error:mail for you bounces", "error", "mail for you bounces"},
 	}
 	var (
-		tr  *TransParts
+		tr  *TransportParts
 		err error
 	)
 
