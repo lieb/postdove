@@ -43,8 +43,8 @@ CREATE TABLE "Domain" (
        rclass TEXT DEFAULT "DEFAULT", -- recipient restriction class
        	      	      	      	  -- breaks w/ NULL. make NOT NULL and make it TEXT
        UNIQUE (name),
-       FOREIGN KEY(transport) REFERENCES Transport(id),
-       FOREIGN KEY(access) REFERENCES Access(id)
+       CONSTRAINT dom_trans FOREIGN KEY(transport) REFERENCES Transport(id),
+       CONSTRAINT dom_access FOREIGN KEY(access) REFERENCES Access(id)
        );
 
 -- Address table
@@ -57,9 +57,9 @@ CREATE TABLE "Address" (
        rclass TEXT,    -- recipient restriction class
        	      	       -- if this is null, use domain rclass
        access INTEGER,
-       FOREIGN KEY(domain) REFERENCES Domain(id),
-       FOREIGN KEY(transport) REFERENCES Transport(id),
-       FOREIGN KEY(access) REFERENCES Access(id)
+       CONSTRAINT addr_domain FOREIGN KEY(domain) REFERENCES Domain(id),
+       CONSTRAINT addr_trans FOREIGN KEY(transport) REFERENCES Transport(id),
+       CONSTRAINT addr_access FOREIGN KEY(access) REFERENCES Access(id)
        UNIQUE (localpart, domain)
        );
 
@@ -75,11 +75,11 @@ CREATE VIEW "address_transport" AS
 	  ELSE coalesce (dt.transport, '') || ':' ||
 	       coalesce (dt.nexthop, '')
 	  END
-       END AS trans
+       AS trans
 FROM domain as	ld
     LEFT JOIN address AS la ON	ld.id = la.domain
     LEFT JOIN transport AS dt ON ld.transport = dt.id
-    LEFT JOIN transport AS at ON la.transport = at.id
+    LEFT JOIN transport AS at ON la.transport = at.id;
 
 -- Alias table
 DROP TABLE IF EXISTS "Alias";
@@ -88,8 +88,8 @@ CREATE TABLE "Alias" (
        address INTEGER NOT NULL,
        target INTEGER,
        extension TEXT, 
-       FOREIGN KEY(address) REFERENCES Address(id),
-       FOREIGN KEY(target) REFERENCES Address(id),
+       CONSTRAINT alias_addr FOREIGN KEY(address) REFERENCES Address(id),
+       CONSTRAINT alias_target FOREIGN KEY(target) REFERENCES Address(id),
        UNIQUE(address, target, extension));
 
 -- etc_aliases (local aliases)
@@ -108,7 +108,7 @@ CREATE VIEW "etc_aliases" AS SELECT aa.id as id, aa.localpart as local,
 		FROM Alias
 		JOIN address as ta on alias.active != 0 and alias.target = ta.id
 		JOIN domain as td on ta.domain = td.id
-		JOIN address as aa on Alias.address = aa.id and aa.domain = 0
+		JOIN address as aa on Alias.address = aa.id and aa.domain = 0;
 
 -- alias_recipient models the alias/valias file where a line is:
 --   alias@dom	   recipient, recipient
@@ -138,7 +138,7 @@ CREATE VIEW "virt_alias" AS SELECT aa.localpart as lcl, ad.name as name, ta.loca
 	JOIN address as ta on (va.target = ta.id)
 	join domain as td on (ta.domain = td.id)
 	JOIN address as aa on (va.address = aa.id)
-	join domain as ad on (aa.domain != 0 and aa.domain = ad.id)
+	join domain as ad on (aa.domain != 0 and aa.domain = ad.id);
 
 -- vmailbox, dovecot user database
 DROP TABLE IF EXISTS "VMailbox";
@@ -149,7 +149,7 @@ CREATE TABLE "VMailbox" (
        gid INTEGER,
        home TEXT,  -- just home part for dovecot config of mail_home
        password TEXT,
-       FOREIGN KEY(id) REFERENCES Address(id));
+       CONSTRAINT vmbox_addr FOREIGN KEY(id) REFERENCES Address(id));
 
 -- user_mailbox is a combination of an address row and a vmailbox row
 -- There are bits of this I do not like, namely the coalesce functions
@@ -164,7 +164,7 @@ CREATE VIEW "user_mailbox" AS
        	      mb.active as inuse, a.active as active
        from VMailbox as mb
        	      join address as a on (a.id = mb.id)
-	      join domain as d on (a.domain = d.id)
+	      join domain as d on (a.domain = d.id);
 
 -- backscatter and catchall here are for example. I don't do it so
 -- scratch this bit.
