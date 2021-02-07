@@ -315,7 +315,7 @@ FROM address WHERE localpart = ? AND domain = ?
 }
 
 // insertAddress
-// Insert an address under a transaction
+// Insert an address MUST be under a transaction
 func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 	var (
 		domID  sql.NullInt64
@@ -353,6 +353,7 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 			return nil, fmt.Errorf("insertAddress: select alias domain, %s", err)
 		}
 	}
+	// FIXME: just insert and detect dup IsErrConstraintUnique
 	row = mdb.db.QueryRow("SELECT id FROM address WHERE localpart = ? AND domain = ?",
 		ap.lpart, domID)
 	switch err = row.Scan(&addrID); err {
@@ -371,8 +372,9 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 		return nil, fmt.Errorf("insertAddress: select alias localpart, %s", err)
 	}
 	addr = &Address{ // the rest of Address is not init'd. DB may have other defaults
-		id:     addrID,
-		domain: domID,
+		id:        addrID,
+		localpart: ap.lpart,
+		domain:    domID,
 	}
 	return addr, nil
 }
@@ -383,18 +385,26 @@ func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
 	if err != nil {
 		fmt.Errorf("deleteAddress: %s", err)
 	}
-	return mdb.deleteAddressByID(addr)
+	if addr != nil {
+		return mdb.deleteAddressByID(addr)
+	} else {
+		return fmt.Errorf("deleteAddress: address not found")
+	}
 }
 
 // deleteAddressByID
+// we consider foreign key on domain is not really an error here. throw other errors
 func (mdb *MailDB) deleteAddressByID(addr *Address) error {
+	if addr == nil {
+		return fmt.Errorf("deleteAddressByID: nil addr")
+	}
 	_, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
-	if err != nil && IsErrConstraintForeignKey(err) { //
+	if err != nil && !IsErrConstraintForeignKey(err) {
 		return fmt.Errorf("deleteAddressByID: delete address, %s", err)
 	}
 	if addr.domain.Valid { // See if we can delete the domain too
 		_, err = mdb.tx.Exec("DELETE FROM domain WHERE id = ?", addr.domain.Int64)
-		if err != nil && IsErrConstraintForeignKey(err) {
+		if err != nil && !IsErrConstraintForeignKey(err) {
 			return fmt.Errorf("deleteAddressByID: delete domain, %s", err)
 		}
 	}
