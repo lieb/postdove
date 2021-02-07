@@ -83,17 +83,10 @@ type MailDB struct {
 // NewMailDB
 // Sqlite DB open.  ":memory:" for testing...
 func NewMailDB(dbPath string) (*MailDB, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+
+	db, err := sql.Open("sqlite3", "file:"+dbPath+"?_foreign_keys=on")
 	if err != nil {
 		return nil, fmt.Errorf("NewMailDB: open, %s", err)
-	}
-	// force pragmas
-	if _, err = db.Exec("PRAGMA foreign_keys=ON;"); err != nil {
-		emsg := fmt.Errorf("NewMailDB: exec pragma, %s", err)
-		if err = db.Close(); err != nil {
-			return nil, fmt.Errorf("NewMailDB: pragma error %s, close %s",
-				emsg, err)
-		}
 	}
 	mdb := &MailDB{
 		db: db,
