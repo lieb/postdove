@@ -94,6 +94,50 @@ func NewMailDB(dbPath string) (*MailDB, error) {
 	return mdb, nil
 }
 
+// loadDB
+func loadDB(dbPath string, schema string) (*MailDB, error) {
+	var (
+		mdb *MailDB
+		err error
+	)
+
+	if mdb, err = NewMailDB(dbPath); err != nil {
+		return nil, fmt.Errorf("loadDB: %s", err)
+	}
+	lines := strings.Split(schema, ";\n")
+	for line, req := range lines {
+		if _, err = mdb.db.Exec(req); err != nil {
+			return nil, fmt.Errorf("loadDB: line %d: %s, %s", line, req, err)
+		}
+	}
+	return mdb, nil
+}
+
+// begin
+func (mdb *MailDB) begin() error {
+	if tx, err := mdb.db.Begin(); err != nil {
+		return fmt.Errorf("begin(): failed %s", err)
+	} else {
+		mdb.tx = tx
+		return nil
+	}
+}
+
+// end
+func (mdb *MailDB) end(makeItSo bool) {
+	if mdb.tx == nil {
+		panic("End(): not in a transaction")
+	}
+	if makeItSo {
+		if err := mdb.tx.Commit(); err != nil {
+			panic(fmt.Errorf("end(): commit, %s", err)) // we are really screwed
+		}
+	} else {
+		mdb.tx.Rollback()
+	}
+	mdb.tx = nil
+}
+
 // Close
 func (mdb *MailDB) Close() {
 	mdb.db.Close()
