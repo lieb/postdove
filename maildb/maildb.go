@@ -241,6 +241,35 @@ type Address struct {
 	access    sql.NullInt64
 }
 
+// dump
+func (a *Address) dump() string {
+	var (
+		line strings.Builder
+	)
+	fmt.Fprintf(&line, "id:%d, localpart: %s, ", a.id, a.localpart)
+	if a.domain.Valid {
+		fmt.Fprintf(&line, "domain id: %d, ", a.domain.Int64)
+	} else {
+		fmt.Fprintf(&line, "domain id: <NULL>, ")
+	}
+	if a.transport.Valid {
+		fmt.Fprintf(&line, "transport: %d, ", a.transport.Int64)
+	} else {
+		fmt.Fprintf(&line, "transport: <NULL>, ")
+	}
+	if a.rclass.Valid {
+		fmt.Fprintf(&line, "rclass: %s, ", a.rclass.String)
+	} else {
+		fmt.Fprintf(&line, "rclass: <NULL>, ")
+	}
+	if a.access.Valid {
+		fmt.Fprintf(&line, "access: %d, ", a.access.Int64)
+	} else {
+		fmt.Fprintf(&line, "access: <NULL>")
+	}
+	return line.String()
+}
+
 // lookupAddress
 // helper to find 'lpart@domain' and return an address id.
 // return nil, nil for "not found"
