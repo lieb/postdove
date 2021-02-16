@@ -23,7 +23,7 @@ package maildb
 import (
 	//"database/sql"
 	"fmt"
-	//"strings"
+	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3" // do I really need this here?
@@ -59,6 +59,9 @@ func TestDecode(t *testing.T) {
 		if ap.lpart != r.lpart || ap.domain != r.domain || ap.extension != r.ext {
 			t.Errorf("%s: lpart = %s, domain = %s, extension = %s",
 				r.addr, ap.lpart, ap.domain, ap.extension)
+		}
+		if r.addr != ap.String() {
+			t.Errorf("%s != %s", r.addr, ap.String())
 		}
 	}
 	ap, err = DecodeRFC822("foo{bar@baz")
@@ -96,6 +99,11 @@ func TestTarget(t *testing.T) {
 		if ap.lpart != r.lpart || ap.domain != r.domain || ap.extension != r.ext {
 			t.Errorf("%s: lpart = %s, domain = %s, extension = %s",
 				r.addr, ap.lpart, ap.domain, ap.extension)
+		}
+		if r.addr != ap.String() {
+			if strings.Contains(r.addr, "@") && strings.ToLower(strings.Trim(r.addr, " ")) != ap.String() {
+				t.Errorf("%s != %s", r.addr, ap.String())
+			}
 		}
 	}
 	ap, err = DecodeTarget("foo{bar@baz")
