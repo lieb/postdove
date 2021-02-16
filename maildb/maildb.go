@@ -211,6 +211,26 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 	}
 }
 
+func (ap *AddressParts) String() string {
+	var (
+		line strings.Builder
+	)
+	if ap.lpart != "" {
+		fmt.Fprintf(&line, "%s", ap.lpart)
+		if ap.extension != "" {
+			fmt.Fprintf(&line, "+%s", ap.extension)
+		}
+		if ap.domain != "" {
+			fmt.Fprintf(&line, "@%s", ap.domain)
+		}
+	} else if ap.domain != "" {
+		fmt.Fprintf(&line, "@%s", ap.domain)
+	} else {
+		fmt.Fprintf(&line, ap.extension)
+	}
+	return line.String()
+}
+
 type TransportParts struct {
 	transport string
 	nexthop   string
