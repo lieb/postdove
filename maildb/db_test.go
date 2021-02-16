@@ -104,9 +104,10 @@ func countAddresses(mdb *MailDB) (aCnt int, dCnt int) {
 // TestDBLoad
 func TestDBLoad(t *testing.T) {
 	var (
-		err error
-		mdb *MailDB
-		dir string
+		err            error
+		mdb            *MailDB
+		dir            string
+		aCount, dCount int
 	)
 
 	fmt.Printf("Database load test\n")
@@ -119,43 +120,83 @@ func TestDBLoad(t *testing.T) {
 		return
 	}
 
+	// test basic local address insert
+	a, err := doAddressInsert(mdb, "dmr")
+	if err != nil {
+		t.Errorf("insert of dmr failed %s", err)
+	} else if a == nil {
+		t.Errorf("insert of dmr: already exists")
+	} else {
+		aCount, dCount = countAddresses(mdb)
+		if aCount != 1 || dCount != 0 {
+			t.Errorf("insert of dmr: expected 1 addr, 0 domains, got %d, %d",
+				aCount, dCount)
+		}
+		if a.String() != "dmr" {
+			t.Errorf("dmr: bad String(), %s", a.String())
+		}
+		if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+			t.Errorf("dmr: bad dump(), %s", a.dump())
+		}
+	}
+
+	// try to insert it again
+	a, err = doAddressInsert(mdb, "dmr")
+	if err != nil {
+		t.Errorf("duplicate insert of dmr failed %s", err)
+	} else if a != nil {
+		t.Errorf("duplicate insert of dmr should have returned nil")
+	}
+
 	// test basic insert. Should have one address row and one domain row
-	a, err := doAddressInsert(mdb, "mary@goof.com")
+	a, err = doAddressInsert(mdb, "mary@goof.com")
 	if err != nil {
 		t.Errorf("insert of mary@goof.com failed %s", err)
-	}
-	aCount, dCount := countAddresses(mdb)
-	if aCount != 1 || dCount != 1 {
-		t.Errorf("insert of mary@goof.com: expected 1 addr, 1 domain, got %d, %d",
-			aCount, dCount)
-	}
-	if a.dump() != "id:1, localpart: mary, domain id: 1, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
-		t.Errorf("mary@goof.com: bad String(), %s", a.dump())
+	} else if a == nil {
+		t.Errorf("insert of mary@goof.com: already exists")
+	} else {
+		aCount, dCount = countAddresses(mdb)
+		if aCount != 2 || dCount != 1 {
+			t.Errorf("insert of mary@goof.com: expected 2 addr, 1 domain, got %d, %d",
+				aCount, dCount)
+		}
+		if a.String() != "mary@goof.com" {
+			t.Errorf("mary@goof.com: bad String(), %s", a.String())
+		}
+		if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+			t.Errorf("mary@goof.com: bad dump(), %s", a.dump())
+		}
 	}
 
 	// second insert, same domain. should now have 2 address rows and 1 domain
 	a, err = doAddressInsert(mdb, "bill@goof.com")
 	if err != nil {
 		t.Errorf("insert of bill@goof.com failed %s", err)
-	}
-	aCount, dCount = countAddresses(mdb)
-	if aCount != 2 || dCount != 1 {
-		t.Errorf("insert of bill@goof.com: expected 2 addr, 1 domain, got %d, %d",
-			aCount, dCount)
-	}
-	if a.dump() != "id:2, localpart: bill, domain id: 1, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
-		t.Errorf("bill@goof.com: bad dump(), %s", a.dump())
+	} else if a == nil {
+		t.Errorf("insert of bill@goof.com: already exists")
+	} else {
+		aCount, dCount = countAddresses(mdb)
+		if aCount != 3 || dCount != 1 {
+			t.Errorf("insert of bill@goof.com: expected 3 addr, 1 domain, got %d, %d",
+				aCount, dCount)
+		}
+		if a.dump() != "id:3, localpart: bill, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+			t.Errorf("bill@goof.com: bad dump(), %s", a.dump())
+		}
 	}
 
 	// third insert is new domain. should have 3 addresses and 2 domains
 	_, err = doAddressInsert(mdb, "dave@slip.com")
 	if err != nil {
 		t.Errorf("insert of dave@slip.com failed %s", err)
-	}
-	aCount, dCount = countAddresses(mdb)
-	if aCount != 3 || dCount != 2 {
-		t.Errorf("dave@slip.com: expected 3 addr, 2 domain, got %d, %d",
-			aCount, dCount)
+	} else if a == nil {
+		t.Errorf("insert of dave@slip.com: already exists")
+	} else {
+		aCount, dCount = countAddresses(mdb)
+		if aCount != 4 || dCount != 2 {
+			t.Errorf("dave@slip.com: expected 4 addr, 2 domain, got %d, %d",
+				aCount, dCount)
+		}
 	}
 
 	// lookup a bogus address. should get nil, nil
@@ -168,18 +209,34 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// now look up a legit...
+	ap, _ = DecodeRFC822("dmr")
+	a, err = mdb.lookupAddress(ap)
+	if err != nil {
+		t.Errorf("lookup of dmr failed: %s", err)
+	}
+	if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+		t.Errorf("dmr: bad dump(), %s", a.dump())
+	}
+
+	// now delete it and check. We should have 2 addresses and 2 domains
+	if err = doAddressDeleteByID(mdb, a); err != nil {
+		t.Errorf("delete of dmr failed: %s", err)
+	}
+	aCount, dCount = countAddresses(mdb)
+	if aCount != 3 || dCount != 2 {
+		t.Errorf("delete of dmr: expected 3 addresses, 2 domains, got %d, %d", aCount, dCount)
+	}
+
 	ap, _ = DecodeRFC822("mary@goof.com")
 	a, err = mdb.lookupAddress(ap)
 	if err != nil {
 		t.Errorf("lookup of mary@goof.com failed: %s", err)
 	}
-	if a.dump() != "id:1, localpart: mary, domain id: 1, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+	if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
 		t.Errorf("mary@goof.com: bad dump(), %s", a.dump())
 	}
 
 	// now delete it and check. We should have 2 addresses and 2 domains
-	//	if ac, dc := countAddresses(mdb)
-	//	fmt.Printf("ac = %d, dc = %d\n", ac, dc)
 	if err = doAddressDeleteByID(mdb, a); err != nil {
 		t.Errorf("delete of mary@goof.com failed: %s", err)
 	}
