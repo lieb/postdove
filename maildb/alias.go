@@ -317,18 +317,11 @@ func (mdb *MailDB) MakeAlias(alias string, recipient string) error {
 		return fmt.Errorf("MakeAlias: recipient, %s", err)
 	}
 	// Enter a transaction for everything else
-	if mdb.tx, err = mdb.db.Begin(); err != nil {
+	if err = mdb.begin(); err != nil {
 		return fmt.Errorf("MakeAlias: begin, %s", err)
 	}
-	defer func() {
-		if err == nil {
-			if err = mdb.tx.Commit(); err != nil {
-				panic(fmt.Errorf("MakeAlias: commit, %s", err)) // we are screwed
-			}
-		} else {
-			mdb.tx.Rollback()
-		}
-	}()
+	defer mdb.end(err == nil)
+
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
 		return fmt.Errorf("MakeAlias: alias, %s", err)
 	}
@@ -427,18 +420,11 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 	}
 
 	// Enter a transaction for everything else
-	if mdb.tx, err = mdb.db.Begin(); err != nil {
+	if err = mdb.begin(); err != nil {
 		return fmt.Errorf("RemoveAlias: begin, %s", err)
 	}
-	defer func() {
-		if err == nil {
-			if err = mdb.tx.Commit(); err != nil {
-				panic(fmt.Errorf("RemoveAlias: commit, %s", err)) // we are screwed
-			}
-		} else {
-			mdb.tx.Rollback()
-		}
-	}()
+	defer mdb.end(err == nil)
+
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
 		return fmt.Errorf("RemoveAlias: alias, %s", err)
 	}
@@ -496,18 +482,11 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	}
 
 	// Enter a transaction for everything else
-	if mdb.tx, err = mdb.db.Begin(); err != nil {
+	if err = mdb.begin(); err != nil {
 		return fmt.Errorf("RemoveRecipient: begin, %s", err)
 	}
-	defer func() {
-		if err == nil {
-			if err = mdb.tx.Commit(); err != nil {
-				panic(fmt.Errorf("RemoveRecipient: commit, %s", err)) // we are screwed
-			}
-		} else {
-			mdb.tx.Rollback()
-		}
-	}()
+	defer mdb.end(err == nil)
+
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
 		return fmt.Errorf("RemoveRecipient: alias, %s", err)
 	}
