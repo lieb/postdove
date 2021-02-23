@@ -90,7 +90,8 @@ CREATE TABLE "Alias" (
        extension TEXT, 
        CONSTRAINT alias_addr FOREIGN KEY(address) REFERENCES Address(id),
        CONSTRAINT alias_target FOREIGN KEY(target) REFERENCES Address(id),
-       UNIQUE(address, target, extension));
+       UNIQUE(address, target, extension)
+       CHECK (target IS NOT NULL OR extension IS NOT NULL));
 
 -- etc_aliases (local aliases)
 -- alias	recipient, recipient ...
