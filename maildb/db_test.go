@@ -52,12 +52,11 @@ func doAddressInsert(mdb *MailDB, addr string) (a *Address, err error) {
 	if err = mdb.begin(); err != nil {
 		return
 	}
-	// defer func() {mdb.end(err == nil}
+	defer mdb.end(err == nil)
 	a, err = mdb.insertAddress(ap)
 	if err != nil {
 		return
 	}
-	mdb.end(err == nil) // we would normally defer this
 	return
 }
 
@@ -69,9 +68,8 @@ func doAddressDelete(mdb *MailDB, addr string) error {
 	if err = mdb.begin(); err != nil {
 		return err
 	}
-	// defer func() {mdb.end(err == nil}
+	defer mdb.end(err == nil)
 	err = mdb.deleteAddress(ap)
-	mdb.end(err == nil) // we would normally defer this
 	return err
 }
 
@@ -82,9 +80,8 @@ func doAddressDeleteByID(mdb *MailDB, a *Address) error {
 	if err = mdb.begin(); err != nil {
 		return err
 	}
-	// defer func() {mdb.end(err == nil}
+	defer mdb.end(err == nil)
 	err = mdb.deleteAddressByID(a)
-	mdb.end(err == nil) // we would normally defer this
 	return err
 }
 
