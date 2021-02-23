@@ -67,7 +67,7 @@ func TestDecode(t *testing.T) {
 	ap, err = DecodeRFC822("foo{bar@baz")
 	if err == nil {
 		t.Errorf("foo/bar@baz: did not throw illegal char error")
-	} else if err.Error() != "DecodeRFC822: foo{bar@baz contains illegal characters" {
+	} else if err != ErrMdbAddrIllegalChars {
 		t.Errorf("err code: %s", err)
 	}
 }
@@ -109,13 +109,13 @@ func TestTarget(t *testing.T) {
 	ap, err = DecodeTarget("foo{bar@baz")
 	if err == nil {
 		t.Errorf("foo/bar@baz: did not throw illegal char error")
-	} else if err.Error() != "DecodeTarget: DecodeRFC822: foo{bar@baz contains illegal characters" {
+	} else if err != ErrMdbAddrIllegalChars {
 		t.Errorf("err code: %s", err)
 	}
 	ap, err = DecodeTarget(":bogus:")
 	if err == nil {
 		t.Errorf(":bogus: did not throw illegal char error")
-	} else if err.Error() != "DecodeTarget: badly formed or empty include" {
+	} else if err != ErrMdbBadInclude {
 		t.Errorf("DecodeTarget: unexpected err code: %s", err)
 	}
 }

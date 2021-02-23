@@ -22,10 +22,26 @@ package maildb
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/mattn/go-sqlite3" // do I really need this here?
+)
+
+var (
+	ErrMdbAddressEmpty     = errors.New("address is empty")
+	ErrMdbTargetEmpty      = errors.New("target is empty")
+	ErrMdbAddrIllegalChars = errors.New("illegal chars in address")
+	ErrMdbNoLocalPipe      = errors.New("no local pipe or redirect")
+	ErrMdbBadInclude       = errors.New("badly formed or empty include")
+	ErrMdbTransNoColon     = errors.New("No ':' separator")
+	ErrMdbAddressNoFound   = errors.New("address not found")
+	ErrMdbDomainNotFound   = errors.New("domain not found")
+	ErrMdbDupAddress       = errors.New("Address already exists")
+	ErrMdbDupDomain        = errors.New("Domain already exists")
+	ErrMdbTransNotFound    = errors.New("transport not found")
+	ErrMdbDupTrans         = errors.New("transport already exists")
 )
 
 // Sqlite3 errors we are interested in
@@ -158,9 +174,13 @@ func DecodeRFC822(addr string) (*AddressParts, error) {
 		domain string = ""
 		// extension is transparent here and embedded in local
 	)
+
+	if addr == "" {
+		return nil, ErrMdbTargetEmpty
+	}
 	a := strings.ToLower(strings.Trim(addr, " "))    // clean up and lower everything
 	if strings.ContainsAny(a, "\n\r\t\f{}()[];\"") { // contains illegal cruft
-		return nil, fmt.Errorf("DecodeRFC822: %s contains illegal characters", addr)
+		return nil, ErrMdbAddrIllegalChars
 	}
 	if strings.Contains(a, "@") { // local@fqdn
 		at := strings.Index(a, "@")
@@ -183,22 +203,24 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 		domain:    "",
 		extension: addr,
 	}
-	if addr[0] == '/' || addr[0] == '|' { // a local pipe or file redirect
+	if addr == "" {
+		return nil, ErrMdbTargetEmpty
+	} else if addr[0] == '/' || addr[0] == '|' { // a local pipe or file redirect
 		if len(addr) > 1 {
 			return ap, nil
 		} else {
-			return nil, fmt.Errorf("DecodeTarget: no local pipe or redirect")
+			return nil, ErrMdbNoLocalPipe
 		}
 	} else if addr[0] == ':' {
 		if len(addr) > 10 && addr[:9] == ":include:" { // an include
 			return ap, nil
 		} else {
-			return nil, fmt.Errorf("DecodeTarget: badly formed or empty include")
+			return nil, ErrMdbBadInclude
 		}
 	} else {
 		ap, err := DecodeRFC822(addr)
 		if err != nil {
-			return nil, fmt.Errorf("DecodeTarget: %s", err)
+			return nil, err
 		}
 		if strings.Contains(ap.lpart, "+") { // we have an address extension
 			pl := strings.Index(ap.lpart, "+")
@@ -246,7 +268,7 @@ func DecodeTransport(trans string) (*TransportParts, error) {
 		}
 		return t, nil
 	} else {
-		return nil, fmt.Errorf("DecodeTransport: No ':' separator")
+		return nil, ErrMdbTransNoColon
 	}
 }
 
@@ -327,7 +349,7 @@ func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
 		case nil: // existing domain
 			break
 		default:
-			return nil, fmt.Errorf("lookupAddress: select address domain, %s", err)
+			return nil, err
 		}
 	}
 	addr := &Address{
@@ -348,7 +370,7 @@ FROM address WHERE localpart = ? AND domain IS ?
 	case nil:
 		return addr, nil
 	default:
-		return nil, fmt.Errorf("lookupAddress: select address localpart, %s", err)
+		return nil, err
 	}
 }
 
@@ -374,7 +396,7 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 		case sql.ErrNoRows: // Make a new virtual domain, assume its class is the default...
 			res, err := mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", ap.domain)
 			if err != nil {
-				return nil, fmt.Errorf("insertAddress: new domain, %s", err)
+				return nil, err
 			}
 			if id, err := res.LastInsertId(); err == nil {
 				domID = sql.NullInt64{
@@ -382,13 +404,12 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 					Int64: id,
 				}
 			} else {
-				return nil, fmt.Errorf(
-					"insertAddress: Cannot get id of new domain, %s", err)
+				return nil, err
 			}
 		case nil: // existing domain
 			break
 		default:
-			return nil, fmt.Errorf("insertAddress: select alias domain, %s", err)
+			return nil, err
 		}
 	}
 	// FIXME: just insert and detect dup IsErrConstraintUnique
@@ -399,15 +420,15 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 		res, err := mdb.tx.Exec("INSERT INTO address (localpart, domain) VALUES (?, ?)",
 			ap.lpart, domID)
 		if err != nil {
-			return nil, fmt.Errorf("insertAddress: new alias, %s", err)
+			return nil, err
 		}
 		if addrID, err = res.LastInsertId(); err != nil {
-			return nil, fmt.Errorf("insertAddress: cannot get id of new alias, %s", err)
+			return nil, err
 		}
 	case nil: // already exists.
 		return nil, nil
 	default:
-		return nil, fmt.Errorf("insertAddress: select alias localpart, %s", err)
+		return nil, err
 	}
 	addr = &Address{ // the rest of Address is not init'd. DB may have other defaults
 		id:        addrID,
@@ -424,29 +445,26 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
 	addr, err := mdb.lookupAddress(ap)
 	if err != nil {
-		fmt.Errorf("deleteAddress: %s", err)
+		return err
 	}
 	if addr != nil {
 		return mdb.deleteAddressByID(addr)
 	} else {
-		return fmt.Errorf("deleteAddress: address not found")
+		return ErrMdbAddressNoFound
 	}
 }
 
 // deleteAddressByID
 // we consider foreign key on domain is not really an error here. throw other errors
 func (mdb *MailDB) deleteAddressByID(addr *Address) error {
-	if addr == nil {
-		return fmt.Errorf("deleteAddressByID: nil addr")
-	}
 	_, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
 	if err != nil && !IsErrConstraintForeignKey(err) {
-		return fmt.Errorf("deleteAddressByID: delete address, %s", err)
+		return err
 	}
 	if addr.domain.Valid { // See if we can delete the domain too
 		_, err = mdb.tx.Exec("DELETE FROM domain WHERE id = ?", addr.domain.Int64)
 		if err != nil && !IsErrConstraintForeignKey(err) {
-			return fmt.Errorf("deleteAddressByID: delete domain, %s", err)
+			return err
 		}
 	}
 	return nil
