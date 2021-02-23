@@ -140,9 +140,9 @@ func TestDBLoad(t *testing.T) {
 	// try to insert it again
 	a, err = doAddressInsert(mdb, "dmr")
 	if err != nil {
-		t.Errorf("duplicate insert of dmr failed %s", err)
-	} else if a != nil {
-		t.Errorf("duplicate insert of dmr should have returned nil")
+		if err != ErrMdbDupAddress {
+			t.Errorf("duplicate insert of dmr, unexpected error %s", err)
+		}
 	}
 
 	// test basic insert. Should have one address row and one domain row
@@ -196,13 +196,11 @@ func TestDBLoad(t *testing.T) {
 		}
 	}
 
-	// lookup a bogus address. should get nil, nil
+	// lookup a bogus address at legit domain.
 	ap, _ := DecodeRFC822("foo@goof.com")
 	a, err = mdb.lookupAddress(ap)
-	if err != nil {
-		t.Errorf("lookup of foo@goof.com failed: %s", err)
-	} else if a != nil {
-		t.Errorf("foo@goof.com: got bogus address dump, %s", a.dump())
+	if err != nil && err != ErrMdbAddressNotFound {
+		t.Errorf("lookup of foo@goof.com failed unexpectedly: %s", err)
 	}
 
 	// now look up a legit...
@@ -253,7 +251,7 @@ func TestDBLoad(t *testing.T) {
 
 	// delete a bogus address in a legit domain. We should see an error
 	if err = doAddressDelete(mdb, "foo@goof.com"); err != nil {
-		if err != ErrMdbAddressNoFound {
+		if err != ErrMdbAddressNotFound {
 			t.Errorf("delete of foo@goof.com failed: %s", err)
 		}
 	} else {
@@ -266,7 +264,7 @@ func TestDBLoad(t *testing.T) {
 
 	// delete a bogus address in a bogus domain
 	if err = doAddressDelete(mdb, "foo@baz"); err != nil {
-		if err != ErrMdbAddressNoFound {
+		if err != ErrMdbDomainNotFound {
 			t.Errorf("delete of foo@baz failed: %s", err)
 		}
 	} else {

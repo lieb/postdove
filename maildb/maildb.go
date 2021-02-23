@@ -36,7 +36,7 @@ var (
 	ErrMdbNoLocalPipe      = errors.New("no local pipe or redirect")
 	ErrMdbBadInclude       = errors.New("badly formed or empty include")
 	ErrMdbTransNoColon     = errors.New("No ':' separator")
-	ErrMdbAddressNoFound   = errors.New("address not found")
+	ErrMdbAddressNotFound  = errors.New("address not found")
 	ErrMdbDomainNotFound   = errors.New("domain not found")
 	ErrMdbDupAddress       = errors.New("Address already exists")
 	ErrMdbDupDomain        = errors.New("Domain already exists")
@@ -345,7 +345,7 @@ func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
 		row = mdb.db.QueryRow("SELECT id, name FROM domain WHERE name = ?", ap.domain)
 		switch err = row.Scan(&domID, &dname); err {
 		case sql.ErrNoRows:
-			return nil, nil // no such domain so not found address
+			return nil, ErrMdbDomainNotFound
 		case nil: // existing domain
 			break
 		default:
@@ -366,7 +366,7 @@ FROM address WHERE localpart = ? AND domain IS ?
 	switch err = row.Scan(&addr.id, &addr.localpart, &addr.domain,
 		&addr.transport, &addr.rclass, &addr.access); err {
 	case sql.ErrNoRows:
-		return nil, nil // not found address in this domain
+		return nil, ErrMdbAddressNotFound
 	case nil:
 		return addr, nil
 	default:
@@ -426,7 +426,7 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 			return nil, err
 		}
 	case nil: // already exists.
-		return nil, nil
+		return nil, ErrMdbDupAddress
 	default:
 		return nil, err
 	}
@@ -447,11 +447,7 @@ func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
 	if err != nil {
 		return err
 	}
-	if addr != nil {
-		return mdb.deleteAddressByID(addr)
-	} else {
-		return ErrMdbAddressNoFound
-	}
+	return mdb.deleteAddressByID(addr)
 }
 
 // deleteAddressByID
