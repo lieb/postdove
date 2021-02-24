@@ -289,7 +289,7 @@ func (al *Alias) String() string {
 		commas int
 	)
 
-	fmt.Fprintf(&line, "%s:\t", al.a.String())
+	fmt.Fprintf(&line, "%s:\t", al.addr.String())
 	for _, r := range al.recips {
 		if commas > 0 {
 			fmt.Fprintf(&line, ", ")
@@ -311,49 +311,33 @@ func (mdb *MailDB) MakeAlias(alias string, recipient string) error {
 		recipAddr  *Address
 	)
 	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return fmt.Errorf("MakeAlias: alias, %s", err)
+		return err
 	}
 	if recipParts, err = DecodeTarget(recipient); err != nil {
-		return fmt.Errorf("MakeAlias: recipient, %s", err)
+		return err
 	}
 	// Enter a transaction for everything else
 	if err = mdb.begin(); err != nil {
-		return fmt.Errorf("MakeAlias: begin, %s", err)
+		return err
 	}
 	defer mdb.end(err == nil)
 
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
-		return fmt.Errorf("MakeAlias: alias, %s", err)
+		return err
 	}
 	if aliasAddr == nil { // no such, make one
 		if aliasAddr, err = mdb.insertAddress(aliasParts); err != nil {
-			return fmt.Errorf("MakeAlias: alias, %s", err)
+			return err
 		}
 	}
 	// We now have the alias address part, either brand new or an existing
 	// Now find the target.
 	if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
-		return fmt.Errorf("MakeAlias: target, %s", err)
+		return err
 	}
-	if recipAddr == nil {
+	if recipAddr == nil { // fix
 		if recipAddr, err = mdb.insertAddress(recipParts); err != nil {
-			return fmt.Errorf("MakeAlias: target %s", err)
-		}
-	} else { // this addr already exists. Is it at the target end of an alias and is that a dup?
-		var (
-			id int64
-			e  sql.NullString
-		)
-		qal := `SELECT id, extension FROM alias WHERE address = ? AND target = ?`
-		rows, err := mdb.db.Query(qal, aliasAddr.id, recipAddr.id)
-		for rows.Next() {
-			if err = rows.Scan(&id, &e); err != nil {
-				return fmt.Errorf("MakeAlias: alias scan, %s", err)
-			}
-			if (!e.Valid && recipParts.extension == "") ||
-				(e.Valid && e.String == recipParts.extension) {
-				return fmt.Errorf("MakeAlias: alias to this extension already exists")
-			}
+			return err
 		}
 	}
 	// Now have both, no dups, make the link
@@ -365,7 +349,7 @@ func (mdb *MailDB) MakeAlias(alias string, recipient string) error {
 	_, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
 		aliasAddr.id, recipAddr.id, ext)
 	if err != nil {
-		return fmt.Errorf("MakeAlias: insert alias, %s", err)
+		return err
 	}
 	return nil
 }
@@ -380,18 +364,13 @@ func (mdb *MailDB) IsAlias(alias string) (bool, error) {
 		count      int
 	)
 	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return false, fmt.Errorf("IsAlias: alias, %s", err)
+		return false, err
 	}
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
-		return false, fmt.Errorf("IsAlias: alias, %s", err)
-	}
-	if aliasAddr == nil {
-		return false, fmt.Errorf("IsAlias: no such address")
+		return false, err
 	}
 	row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", aliasAddr.id)
 	switch err = row.Scan(&count); err {
-	case sql.ErrNoRows:
-		return false, fmt.Errorf("IsAlias: scan, %s", err)
 	case nil:
 		if count > 0 {
 			return true, nil
@@ -399,7 +378,7 @@ func (mdb *MailDB) IsAlias(alias string) (bool, error) {
 			return false, nil
 		}
 	default:
-		return false, fmt.Errorf("IsAlias: default, %s", err)
+		return false, err
 	}
 }
 
@@ -416,46 +395,43 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 		ext        sql.NullString
 	)
 	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return fmt.Errorf("RemoveAlias: alias, %s", err)
+		return err
 	}
 
 	// Enter a transaction for everything else
 	if err = mdb.begin(); err != nil {
-		return fmt.Errorf("RemoveAlias: begin, %s", err)
+		return err
 	}
 	defer mdb.end(err == nil)
 
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
-		return fmt.Errorf("RemoveAlias: alias, %s", err)
-	}
-	if aliasAddr == nil {
-		return fmt.Errorf("RemoveAlias: no such alias")
+		return err
 	}
 	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
 	rows, err := mdb.db.Query(qa, aliasAddr.id)
 	for rows.Next() {
 		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
-			return fmt.Errorf("RemoveAlias: alias scan, %s", err)
+			return err
 		}
 		aliasCnt++
 		_, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID)
 		if err != nil {
-			return fmt.Errorf("RemoveAlias: delete alias, %s", err)
+			return err
 		}
 		if targetID.Valid {
 			err = mdb.deleteAddressByID(recipAddr)
 			if err != nil {
-				return fmt.Errorf("RemoveAlias: delete recipient, %s", err)
+				return err
 			}
 		}
 	}
 	if aliasCnt > 0 { // Found aliases so delete address
 		err = mdb.deleteAddressByID(aliasAddr)
 		if err != nil {
-			return fmt.Errorf("RemoveAlias: delete alias address, %s", err)
+			return err
 		}
 	} else {
-		return fmt.Errorf("RemoveAlias: address is not an alias")
+		return ErrMdbNotAlias
 	}
 	return nil
 }
@@ -475,37 +451,31 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 		ext        sql.NullString
 	)
 	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return fmt.Errorf("RemoveRecipient: alias, %s", err)
+		return err
 	}
 	if recipParts, err = DecodeTarget(recipient); err != nil {
-		return fmt.Errorf("RemoveRecipient: recipient, %s", err)
+		return err
 	}
 
 	// Enter a transaction for everything else
 	if err = mdb.begin(); err != nil {
-		return fmt.Errorf("RemoveRecipient: begin, %s", err)
+		return err
 	}
 	defer mdb.end(err == nil)
 
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
-		return fmt.Errorf("RemoveRecipient: alias, %s", err)
-	}
-	if aliasAddr == nil {
-		return fmt.Errorf("RemoveRecipient: no such alias")
+		return err
 	}
 	if recipParts.domain != "" { // not a file, filter, or include. no address to see
 		if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
-			return fmt.Errorf("RemoveRecipient: recipient, %s", err)
-		}
-		if recipAddr == nil {
-			return fmt.Errorf("RemoveRecipient: no such recipient")
+			return err
 		}
 	}
 	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
 	rows, err := mdb.db.Query(qa, aliasAddr.id)
 	for rows.Next() {
 		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
-			return fmt.Errorf("RemoveRecipient: alias scan, %s", err)
+			return err
 		}
 		aliasCnt++
 		if !foundit {
@@ -523,22 +493,22 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	if foundit {
 		_, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID)
 		if err != nil {
-			return fmt.Errorf("RemoveRecipient: delete alias, %s", err)
+			return err
 		}
 		if targetID.Valid {
 			err = mdb.deleteAddressByID(recipAddr)
 			if err != nil {
-				return fmt.Errorf("RemoveRecipient: delete recipient, %s", err)
+				return err
 			}
 		}
 		if aliasCnt <= 1 { // last one, remove the alias address too
 			err = mdb.deleteAddressByID(aliasAddr)
 			if err != nil {
-				return fmt.Errorf("RemoveRecipient: delete alias address, %s", err)
+				return err
 			}
 		}
 	} else {
-		return fmt.Errorf("RemoveRecipient: recipient not found in alias")
+		return ErrMdbRecipientNotFound
 	}
 	return nil
 }
