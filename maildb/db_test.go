@@ -116,13 +116,12 @@ func TestDBLoad(t *testing.T) {
 		t.Errorf("Database load failed, %s", err)
 		return
 	}
+	defer mdb.Close()
 
 	// test basic local address insert
 	a, err := doAddressInsert(mdb, "dmr")
 	if err != nil {
 		t.Errorf("insert of dmr failed %s", err)
-	} else if a == nil {
-		t.Errorf("insert of dmr: already exists")
 	} else {
 		aCount, dCount = countAddresses(mdb)
 		if aCount != 1 || dCount != 0 {
@@ -139,18 +138,14 @@ func TestDBLoad(t *testing.T) {
 
 	// try to insert it again
 	a, err = doAddressInsert(mdb, "dmr")
-	if err != nil {
-		if err != ErrMdbDupAddress {
-			t.Errorf("duplicate insert of dmr, unexpected error %s", err)
-		}
+	if err != nil && err != ErrMdbDupAddress {
+		t.Errorf("duplicate insert of dmr, unexpected error %s", err)
 	}
 
 	// test basic insert. Should have one address row and one domain row
 	a, err = doAddressInsert(mdb, "mary@goof.com")
 	if err != nil {
 		t.Errorf("insert of mary@goof.com failed %s", err)
-	} else if a == nil {
-		t.Errorf("insert of mary@goof.com: already exists")
 	} else {
 		aCount, dCount = countAddresses(mdb)
 		if aCount != 2 || dCount != 1 {
@@ -165,12 +160,16 @@ func TestDBLoad(t *testing.T) {
 		}
 	}
 
+	// try inserting it again
+	a, err = doAddressInsert(mdb, "mary@goof.com")
+	if err != nil && err != ErrMdbDupAddress {
+		t.Errorf("duplicate insert of mary@goof.com, unexpected error %s", err)
+	}
+
 	// second insert, same domain. should now have 2 address rows and 1 domain
 	a, err = doAddressInsert(mdb, "bill@goof.com")
 	if err != nil {
 		t.Errorf("insert of bill@goof.com failed %s", err)
-	} else if a == nil {
-		t.Errorf("insert of bill@goof.com: already exists")
 	} else {
 		aCount, dCount = countAddresses(mdb)
 		if aCount != 3 || dCount != 1 {
@@ -186,8 +185,6 @@ func TestDBLoad(t *testing.T) {
 	_, err = doAddressInsert(mdb, "dave@slip.com")
 	if err != nil {
 		t.Errorf("insert of dave@slip.com failed %s", err)
-	} else if a == nil {
-		t.Errorf("insert of dave@slip.com: already exists")
 	} else {
 		aCount, dCount = countAddresses(mdb)
 		if aCount != 4 || dCount != 2 {
