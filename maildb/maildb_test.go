@@ -43,7 +43,7 @@ func TestDecode(t *testing.T) {
 	DecodeRes := []RFC822Res{
 		{"foo", "foo", "", ""},
 		{"foo@baz", "foo", "baz", ""},
-		{"foo+bar@baz", "foo+bar", "baz", ""},
+		{"foo+bar@baz", "foo", "baz", "bar"},
 		{"@baz", "", "baz", ""},
 	}
 	var (
@@ -68,7 +68,13 @@ func TestDecode(t *testing.T) {
 	if err == nil {
 		t.Errorf("foo/bar@baz: did not throw illegal char error")
 	} else if err != ErrMdbAddrIllegalChars {
-		t.Errorf("err code: %s", err)
+		t.Errorf("foo/bar@baz: err code, %s", err)
+	}
+	ap, err = DecodeRFC822("+bar@baz")
+	if err == nil {
+		t.Errorf("+bar@baz did not throw address extension without user part error")
+	} else if err != ErrMdbAddrNoAddr {
+		t.Errorf("+bar@baz: err code, %s", err)
 	}
 }
 

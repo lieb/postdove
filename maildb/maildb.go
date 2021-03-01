@@ -33,6 +33,7 @@ var (
 	ErrMdbAddressEmpty      = errors.New("address is empty")
 	ErrMdbTargetEmpty       = errors.New("target is empty")
 	ErrMdbAddrIllegalChars  = errors.New("illegal chars in address")
+	ErrMdbAddrNoAddr        = errors.New("address extension without user part")
 	ErrMdbNoLocalPipe       = errors.New("no local pipe or redirect")
 	ErrMdbBadInclude        = errors.New("badly formed or empty include")
 	ErrMdbTransNoColon      = errors.New("No ':' separator")
@@ -175,6 +176,7 @@ func DecodeRFC822(addr string) (*AddressParts, error) {
 	var (
 		local  string = ""
 		domain string = ""
+		ext           = ""
 		// extension is transparent here and embedded in local
 	)
 
@@ -192,10 +194,19 @@ func DecodeRFC822(addr string) (*AddressParts, error) {
 	} else { // just local
 		local = a
 	}
+	if strings.Contains(local, "+") { // we have an address extension
+		pl := strings.Index(local, "+")
+		loc := local[0:pl]
+		if loc == "" {
+			return nil, ErrMdbAddrNoAddr
+		}
+		ext = local[pl+1:]
+		local = loc
+	}
 	return &AddressParts{
 		lpart:     local,
 		domain:    domain,
-		extension: "",
+		extension: ext,
 	}, nil
 }
 
@@ -221,18 +232,7 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 			return nil, ErrMdbBadInclude
 		}
 	} else {
-		ap, err := DecodeRFC822(addr)
-		if err != nil {
-			return nil, err
-		}
-		if strings.Contains(ap.lpart, "+") { // we have an address extension
-			pl := strings.Index(ap.lpart, "+")
-			loc := ap.lpart[0:pl]
-			ext := ap.lpart[pl+1:]
-			ap.lpart = loc
-			ap.extension = ext
-		}
-		return ap, nil
+		return DecodeRFC822(addr)
 	}
 }
 
@@ -253,6 +253,14 @@ func (ap *AddressParts) String() string {
 	} else {
 		fmt.Fprintf(&line, ap.extension)
 	}
+	return line.String()
+}
+
+func (ap *AddressParts) dump() string {
+	var (
+		line strings.Builder
+	)
+	fmt.Fprintf(&line, "lpart:%s, domain:%s, ext:%s.", ap.lpart, ap.domain, ap.extension)
 	return line.String()
 }
 
