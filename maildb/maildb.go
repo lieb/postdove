@@ -402,7 +402,7 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 			Int64: 0,
 		}
 	} else { // A Virtual alias entry
-		row = mdb.db.QueryRow("SELECT id FROM domain WHERE name = ?", ap.domain)
+		row = mdb.tx.QueryRow("SELECT id FROM domain WHERE name = ?", ap.domain)
 		switch err = row.Scan(&domID); err {
 		case sql.ErrNoRows: // Make a new virtual domain, assume its class is the default...
 			res, err := mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", ap.domain)
@@ -424,7 +424,7 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 		}
 	}
 	// FIXME: just insert and detect dup IsErrConstraintUnique
-	row = mdb.db.QueryRow("SELECT id FROM address WHERE localpart = ? AND domain IS ?",
+	row = mdb.tx.QueryRow("SELECT id FROM address WHERE localpart = ? AND domain IS ?",
 		ap.lpart, domID)
 	switch err = row.Scan(&addrID); err {
 	case sql.ErrNoRows: // Make a new alias
