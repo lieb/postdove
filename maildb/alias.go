@@ -28,268 +28,188 @@ import (
 	_ "github.com/mattn/go-sqlite3" // do I really need this here?
 )
 
-// RFC822 combined address and domain with their extra gunk
-type RFC822 struct {
-	id       int64
-	lpart    string
-	d_id     sql.NullInt64
-	a_trans  sql.NullInt64
-	a_rclass sql.NullInt64
-	name     sql.NullString // should probably be NOT NULL
-	class    sql.NullInt64
-	d_trans  sql.NullInt64
-	d_rclass sql.NullInt64
-}
-
-// String
-func (a *RFC822) String() string {
-	var line strings.Builder
-
-	fmt.Fprintf(&line, "%s", a.lpart)
-	if a.d_id.Valid {
-		fmt.Fprintf(&line, "@%s", a.name.String)
-	}
-	return line.String()
-}
-
-// Target one each for each alias matched
-type Target struct {
+// Recipient in alias list
+type Recipient struct {
 	id  int64 // id of alias row
 	ext sql.NullString
-	t   *RFC822
+	t   *Address
 }
 
 // String
-func (tg *Target) String() string {
+// beware! virtual aliases cannot have /etc/aliases attributes (pipes and stuff)
+func (tg *Recipient) String() string {
 	var (
-		ext  string
 		line strings.Builder
 	)
-
-	if tg.ext.Valid {
-		ext = tg.ext.String
-	} else {
-		ext = "<NULL>"
-	}
-	if tg.t == nil {
-		fmt.Fprintf(&line, "%s", ext)
-	} else {
+	if tg.t != nil {
 		if tg.ext.Valid {
-			fmt.Fprintf(&line, "%s+%s", tg.t.lpart, ext)
-			if tg.t.d_id.Valid {
-				fmt.Fprintf(&line, "@%s", tg.t.name.String)
+			fmt.Fprintf(&line, "%s+%s", tg.t.localpart, tg.ext.String)
+			if tg.t.domain.Valid {
+				fmt.Fprintf(&line, "@%s", tg.t.dname)
 			}
 		} else {
 			fmt.Fprintf(&line, "%s", tg.t.String())
 		}
-	}
+	} else if tg.ext.Valid {
+		fmt.Fprintf(&line, "%s", tg.ext.String)
+	} // panic else here? CHECK constraint on alias should apply on insert/update
 	return line.String()
 }
 
 // Alias
 type Alias struct {
-	a      RFC822
-	recips []*Target
+	addr   *Address
+	recips []*Recipient
 }
 
 // Id
 func (al *Alias) Id() int64 {
-	return al.a.id
+	return al.addr.id
 }
 
-// GetVirtual get a virtual mailbox alias
-// empty lpart dumps all in domain, both empty dumps all
-func (mdb *MailDB) GetVirtual(lpart string, domain string) ([]*Alias, error) {
+// LookupAlias
+// get either "local_user" or "mbox@domain" aliases
+// name@domain returns that alias recipients for this address
+// *           returns all local (/etc/aliases) aliases
+// *@domain    returns all aliases in this domain
+// name@*      returns all aliases of this name, e.g. abuse@foo.com, abuse@example.org
+// *@*         returns all virtual aliases in the database
+func (mdb *MailDB) LookupAlias(alias string) ([]*Alias, error) {
 	var (
-		rows *sql.Rows
-		err  error
+		ap      *AddressParts
+		al_list []*Alias
+		rows    *sql.Rows
+		err     error
 	)
 
-	q := `
-SELECT a.id AS id,
-       aa.id AS a_id,
-       aa.localpart as a_local,
-       aa.domain as ad_id,
-       aa.transport as a_trans,
-       aa.rclass as a_rclass,
-       a.target as  t_id,
-       a.extension AS ext
-FROM alias AS a
-JOIN address AS aa ON a.address = aa.id
-`
-	if len(lpart) == 0 && len(domain) == 0 { // slurp them all up
-		q += `WHERE ad_id NOT NULL ORDER BY a_id`
-		rows, err = mdb.db.Query(q)
-	} else if len(lpart) == 0 && len(domain) >= 0 { // all in domain
-		q += `
-JOIN domain AS ad ON (aa.domain = ad.id)
-WHERE ad.name = ? ORDER BY a_id
-`
-		rows, err = mdb.db.Query(q, domain)
-	} else { // lpart@domain virtual alias
-		q += `
-JOIN domain AS ad ON (aa.domain = ad.id)
-WHERE a_local = ? AND ad.name = ? ORDER BY a_id`
-		rows, err = mdb.db.Query(q, lpart, domain)
+	if ap, err = DecodeRFC822(alias); err != nil {
+		return nil, err
 	}
-	if err != nil {
-		return nil, fmt.Errorf("GetVirtual: query=%s, %s", q, err)
-	}
-	defer rows.Close()
-	//fmt.Printf("q =%s\n", q)
-	return mdb.fillAlias(rows)
-}
-
-// GetAlias alias from /etc/aliases
-// empty alias implies all
-func (mdb *MailDB) GetAlias(alias string) ([]*Alias, error) {
-	var (
-		rows *sql.Rows
-		err  error
-	)
-
-	q := `
-SELECT a.id AS id,
-       aa.id AS a_id,
-       aa.localpart as a_local,
-       aa.domain as ad_id,
-       aa.transport as a_trans,
-       aa.rclass as a_rclass,
-       a.target as  t_id,
-       a.extension AS ext
-FROM alias AS a
-JOIN address AS aa ON a.address = aa.id
-`
-	if len(alias) > 0 { // one specific
-		q += `WHERE a_local = ? AND ad_id IS NULL ORDER BY a_id`
-		rows, err = mdb.db.Query(q, alias)
-	} else { // all of them
-		q += `WHERE ad_id IS NULL ORDER BY a_id`
-		rows, err = mdb.db.Query(q)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("GetAlias: query=%s, %s", q, err)
-	}
-	defer rows.Close()
-	return mdb.fillAlias(rows)
-}
-
-// fillAlias from the query
-func (mdb *MailDB) fillAlias(rows *sql.Rows) ([]*Alias, error) {
-	var (
-		err       error
-		curr_id   int64
-		al        *Alias
-		res       []*Alias
-		id        int64
-		a_id      int64
-		a_local   string
-		a_trans   sql.NullInt64
-		a_rclass  sql.NullInt64
-		ad_id     sql.NullInt64
-		a_name    sql.NullString
-		a_class   sql.NullInt64
-		ad_trans  sql.NullInt64
-		ad_rclass sql.NullInt64
-		t_id      sql.NullInt64
-		t_local   string
-		t_trans   sql.NullInt64
-		t_rclass  sql.NullInt64
-		td_id     sql.NullInt64
-		t_name    sql.NullString
-		t_class   sql.NullInt64
-		td_trans  sql.NullInt64
-		td_rclass sql.NullInt64
-		ext       sql.NullString
-	)
-
-	for rows.Next() {
-		err = rows.Scan(&id, &a_id, &a_local, &ad_id, &a_trans, &a_rclass,
-			&t_id, &ext)
+	q := `SELECT a.id, a.localpart, a.domain, a.transport, a.rclass, a.access `
+	if ap.lpart == "*" || ap.domain == "*" { // a wildcard query
+		rowCnt := 0
+		if ap.lpart == "*" && ap.domain == "*" { // get all virtual aliases
+			q += `, d.name FROM address AS a, domain AS d WHERE a.domain = d.id ORDER by a.domain, a.id`
+			rows, err = mdb.db.Query(q)
+		} else if ap.lpart == "*" && ap.domain == "" { // get all the local aliases
+			q += `, '' FROM address AS a WHERE a.domain IS NULL ORDER BY a.id`
+			rows, err = mdb.db.Query(q, ap.lpart)
+		} else if len(ap.lpart) > 0 && ap.lpart != "*" && ap.domain == "" { // get this local alias
+			q += `, '' FROM address AS a WHERE a.localpart = ? AND a.domain IS NULL ORDER BY a.id`
+			rows, err = mdb.db.Query(q, ap.lpart)
+		} else if ap.lpart == "*" && len(ap.domain) > 0 && ap.domain != "*" { // all mboxes for this domain
+			q += `, d.name FROM address AS a, domain AS d WHERE a.domain IS d.id AND d.name = ? ORDER BY d.id, a.id`
+			rows, err = mdb.db.Query(q, ap.domain)
+		} else if len(ap.lpart) > 0 && ap.lpart != "*" && ap.domain == "*" { // this mbox in all domains
+			q += `, d.name FROM address AS a, domain AS d WHERE a.localpart = ? AND a.domain = d.id ORDER BY a.domain, a.id`
+			rows, err = mdb.db.Query(q, ap.lpart)
+		} else {
+			return nil, ErrMdbBadAliasWild
+		}
 		if err != nil {
-			return nil, fmt.Errorf("fillAlias: Alias Scan, %s", err)
+			return nil, err
 		}
-		if ad_id.Valid && ad_id.Int64 != 0 {
-			qd := `SELECT name, class, transport, rclass FROM domain WHERE id = ?`
-			row := mdb.db.QueryRow(qd, ad_id.Int64)
-			switch err := row.Scan(&a_name, &a_class, &a_trans, &a_rclass); err {
-			case sql.ErrNoRows:
-				return nil, fmt.Errorf("fillAlias: No alias domain!")
-			case nil:
-				break
-			default:
-				panic(err)
+		for rows.Next() {
+			a := &Address{}
+			if err = rows.Scan(&a.id, &a.localpart, &a.domain, &a.transport, &a.rclass, &a.access,
+				&a.dname); err != nil {
+				return nil, err
 			}
-		}
-		if curr_id != a_id {
-			al = &Alias{
-				a: RFC822{
-					id:       a_id,
-					lpart:    a_local,
-					d_id:     ad_id,
-					a_trans:  a_trans,
-					a_rclass: a_rclass,
-					name:     a_name,
-					class:    a_class,
-					d_trans:  ad_trans,
-					d_rclass: ad_rclass,
-				},
-			}
-			res = append(res, al)
-			curr_id = a_id
-		}
-		recp := &Target{
-			id:  id,
-			ext: ext,
-		}
-		if t_id.Valid { // is it local+ext or ext?
-			qt := `SELECT localpart, domain, transport, rclass FROM address WHERE id = ?`
-			row := mdb.db.QueryRow(qt, t_id.Int64)
-			switch err := row.Scan(&t_local, &td_id, &t_trans, &t_rclass); err {
-			case sql.ErrNoRows:
-				return nil, fmt.Errorf("fillAlias: Target not found!")
-			case nil:
-				break
-			default:
-				panic(fmt.Errorf("GetAliases: %s", err))
-			}
-			if td_id.Valid && td_id.Int64 != 0 { // do we have a domain for this target
-				qtd := `SELECT name, class, transport, rclass FROM domain WHERE id = ?`
-				row := mdb.db.QueryRow(qtd, td_id.Int64)
-				switch err := row.Scan(&t_name, &t_class, &td_trans, &td_rclass); err {
-				case sql.ErrNoRows:
-					return nil, fmt.Errorf("GetAliases: Target domain not found!")
-				case nil:
-					break
-				default:
-					panic(fmt.Errorf("GetAliases: %s", err))
+			al, err := mdb.lookupAliasByAddr(a)
+
+			if err != nil {
+				if err == ErrMdbNotAlias {
+					continue // just skip these guys
+				} else {
+					return nil, err
 				}
 			}
-			recp.t = &RFC822{
-				id:       t_id.Int64,
-				lpart:    t_local,
-				a_trans:  t_trans,
-				a_rclass: t_rclass,
-				d_id:     td_id,
-				name:     t_name,
-				class:    t_class,
-				d_trans:  td_trans,
-				d_rclass: td_rclass,
+			al_list = append(al_list, al)
+			rowCnt++
+		}
+		if err = rows.Close(); err != nil {
+			return nil, err
+		}
+		if rowCnt == 0 {
+			return nil, ErrMdbNotAlias
+		}
+	} else { // no wildcards, just one address
+		a, err := mdb.lookupAddress(ap)
+		if err != nil {
+			return nil, err
+		}
+		al, err := mdb.lookupAliasByAddr(a)
+		if err != nil {
+			return nil, err
+		}
+		al_list = append(al_list, al)
+	}
+	return al_list, nil
+}
+
+// lookupAliasByAddr
+func (mdb *MailDB) lookupAliasByAddr(a *Address) (*Alias, error) {
+	var (
+		aID    int64
+		ta     *Address
+		target sql.NullInt64
+		ext    sql.NullString
+		rows   *sql.Rows
+		rowCnt int64
+		err    error
+	)
+
+	al := &Alias{
+		addr: a,
+	}
+	qal := `SELECT id, target, extension FROM alias WHERE address IS ? ORDER BY id`
+	rows, err = mdb.db.Query(qal, a.id)
+	for rows.Next() {
+		if err = rows.Scan(&aID, &target, &ext); err != nil {
+			return nil, err
+		}
+		if target.Valid {
+			if ta, err = mdb.lookupAddressByID(target.Int64); err != nil {
+				return nil, err
+			}
+		} else {
+			ta = nil
+			if !a.IsLocal() {
+				return nil, ErrMdbAddressTarget
 			}
 		}
-		al.recips = append(al.recips, recp)
+		r := &Recipient{
+			id:  aID,
+			t:   ta,
+			ext: ext,
+		}
+		rowCnt++
+		al.recips = append(al.recips, r)
+
 	}
-	return res, nil
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	if rowCnt == 0 {
+		return nil, ErrMdbNotAlias
+	}
+	return al, nil
 }
 
 // String
+// return a line for this alias
+// Note that /etc/aliases is a different syntax from virtual(5)
 func (al *Alias) String() string {
 	var (
 		line   strings.Builder
 		commas int
 	)
 
-	fmt.Fprintf(&line, "%s:\t", al.addr.String())
+	if al.addr.IsLocal() {
+		fmt.Fprintf(&line, "%s: ", al.addr.String())
+	} else {
+		fmt.Fprintf(&line, "%s ", al.addr.String())
+	}
 	for _, r := range al.recips {
 		if commas > 0 {
 			fmt.Fprintf(&line, ", ")
@@ -302,54 +222,83 @@ func (al *Alias) String() string {
 
 // MakeAlias
 // This is not 'NewAlias' because we can add recipients to an already made alias
-func (mdb *MailDB) MakeAlias(alias string, recipient string) error {
+// do all the address decoding first. That way the transaction is working with
+// already parsed arguments saving complications in rollback on errors. We will
+// only have to rollback on db errors.
+func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 	var (
-		err        error
-		aliasParts *AddressParts
-		recipParts *AddressParts
-		aliasAddr  *Address
-		recipAddr  *Address
+		err       error
+		ap        *AddressParts
+		rp        *AddressParts
+		rp_args   []*AddressParts
+		aliasAddr *Address
 	)
-	if aliasParts, err = DecodeRFC822(alias); err != nil {
+
+	if len(recipients) < 1 {
+		return ErrMdbNoRecipients
+	}
+	if ap, err = DecodeRFC822(alias); err != nil {
 		return err
 	}
-	if recipParts, err = DecodeTarget(recipient); err != nil {
-		return err
+	for _, r := range recipients {
+		if rp, err = DecodeTarget(r); err != nil {
+			return err
+		}
+		if ap.domain != "" && rp.lpart == "" { // a virtual alias cannot have a pipe target
+			return ErrMdbAddrNoAddr
+		}
+		rp_args = append(rp_args, rp)
 	}
+
 	// Enter a transaction for everything else
 	if err = mdb.begin(); err != nil {
 		return err
 	}
 	defer mdb.end(err == nil)
 
-	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
-		return err
-	}
-	if aliasAddr == nil { // no such, make one
-		if aliasAddr, err = mdb.insertAddress(aliasParts); err != nil {
+	if aliasAddr, err = mdb.lookupAddress(ap); err != nil {
+		if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
+			if aliasAddr, err = mdb.insertAddress(ap); err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 	}
 	// We now have the alias address part, either brand new or an existing
-	// Now find the target.
-	if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
-		return err
-	}
-	if recipAddr == nil { // fix
-		if recipAddr, err = mdb.insertAddress(recipParts); err != nil {
+	// Now cycle through the recipient list and stuff them in
+	for _, rp = range rp_args {
+		var (
+			rAddr   *Address
+			recipID sql.NullInt64
+			ext     sql.NullString
+		)
+		if rp.extension != "" {
+			ext.Valid = true
+			ext.String = rp.extension
+		} else {
+			ext.Valid = false
+		}
+		if rp.lpart != "" { // we have a foo@baz address
+			if rAddr, err = mdb.lookupAddress(rp); err != nil {
+				if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
+					if rAddr, err = mdb.insertAddress(rp); err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+			recipID = sql.NullInt64{Valid: true, Int64: rAddr.id}
+		} else {
+			recipID.Valid = false
+		}
+		// Now make the link
+		_, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
+			aliasAddr.id, recipID, ext)
+		if err != nil {
 			return err
 		}
-	}
-	// Now have both, no dups, make the link
-	ext := sql.NullString{Valid: false}
-	if recipParts.extension != "" {
-		ext.Valid = true
-		ext.String = recipParts.extension
-	}
-	_, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
-		aliasAddr.id, recipAddr.id, ext)
-	if err != nil {
-		return err
 	}
 	return nil
 }
