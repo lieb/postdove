@@ -44,7 +44,9 @@ var (
 	ErrMdbTransNotFound     = errors.New("transport not found")
 	ErrMdbDupTrans          = errors.New("transport already exists")
 	ErrMdbNotAlias          = errors.New("address is not an alias")
+	ErrMdbBadAliasWild      = errors.New("Badly formed alias lookup")
 	ErrMdbAddressTarget     = errors.New("virtual alias must have an addressable target")
+	ErrMdbNoRecipients      = errors.New("No recipients supplied for alias")
 	ErrMdbRecipientNotFound = errors.New("alias recipient not found")
 )
 
@@ -295,6 +297,16 @@ type Address struct {
 	access    sql.NullInt64
 }
 
+// IsLocal
+// a "local" address has no domain (address.domain IS NULL)
+func (a *Address) IsLocal() bool {
+	if !a.domain.Valid {
+		return true
+	} else {
+		return false
+	}
+}
+
 func (a *Address) String() string {
 	var (
 		line strings.Builder
@@ -383,6 +395,41 @@ FROM address WHERE localpart = ? AND domain IS ?
 	default:
 		return nil, err
 	}
+}
+
+// lookupAddressByID
+func (mdb *MailDB) lookupAddressByID(addrID int64) (*Address, error) {
+	var (
+		row   *sql.Row
+		err   error
+		addr  *Address
+		dname string
+	)
+
+	qa := `
+SELECT id, localpart, domain, transport, rclass, access
+FROM address WHERE id IS ?
+`
+	addr = &Address{}
+	row = mdb.db.QueryRow(qa, addrID)
+	switch err = row.Scan(&addr.id, &addr.localpart, &addr.domain,
+		&addr.transport, &addr.rclass, &addr.access); err {
+	case sql.ErrNoRows:
+		return nil, ErrMdbAddressNotFound
+	case nil:
+		break
+	default:
+		return nil, err
+	}
+	if addr.domain.Valid {
+		row = mdb.db.QueryRow("SELECT name FROM domain WHERE id IS ?", addr.domain)
+		if err = row.Scan(&dname); err == nil {
+			addr.dname = dname
+		} else {
+			return nil, err
+		}
+	}
+	return addr, nil
 }
 
 // insertAddress
