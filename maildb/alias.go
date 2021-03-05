@@ -357,27 +357,33 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 		return err
 	}
 	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
-	rows, err := mdb.db.Query(qa, aliasAddr.id)
+	rows, err := mdb.tx.Query(qa, aliasAddr.id)
 	for rows.Next() {
 		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
 			return err
 		}
 		aliasCnt++
-		_, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID)
-		if err != nil {
+		if _, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID); err != nil {
 			return err
 		}
 		if targetID.Valid {
-			err = mdb.deleteAddressByID(recipAddr)
-			if err != nil {
+			if recipAddr, err = mdb.lookupAddressByID(targetID.Int64); err != nil {
 				return err
+			} else if err = mdb.deleteAddressByID(recipAddr); err != nil {
+				if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
+					return err
+				}
 			}
 		}
 	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
 	if aliasCnt > 0 { // Found aliases so delete address
-		err = mdb.deleteAddressByID(aliasAddr)
-		if err != nil {
-			return err
+		if err = mdb.deleteAddressByID(aliasAddr); err != nil {
+			if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
+				return err
+			}
 		}
 	} else {
 		return ErrMdbNotAlias
@@ -393,10 +399,7 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 		recipParts *AddressParts
 		aliasAddr  *Address
 		recipAddr  *Address
-		foundit    bool = false
-		aliasCnt   int
 		aliasID    int64
-		targetID   sql.NullInt64
 		ext        sql.NullString
 	)
 	if aliasParts, err = DecodeRFC822(alias); err != nil {
@@ -404,6 +407,9 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	}
 	if recipParts, err = DecodeTarget(recipient); err != nil {
 		return err
+	}
+	if recipParts.extension != "" {
+		ext = sql.NullString{Valid: true, String: recipParts.extension}
 	}
 
 	// Enter a transaction for everything else
@@ -417,47 +423,49 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	}
 	if recipParts.domain != "" { // not a file, filter, or include. no address to see
 		if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
-			return err
-		}
-	}
-	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
-	rows, err := mdb.db.Query(qa, aliasAddr.id)
-	for rows.Next() {
-		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
-			return err
-		}
-		aliasCnt++
-		if !foundit {
-			if recipParts.domain != "" { // a target with possible '+' ext
-				if targetID.Valid && targetID.Int64 == recipAddr.id {
-					foundit = true
-				}
-			} else { // looking for a file/pipe/include only
-				if !targetID.Valid && ext.Valid && ext.String == recipParts.extension {
-					foundit = true
-				}
-			}
-		}
-	}
-	if foundit {
-		_, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID)
-		if err != nil {
-			return err
-		}
-		if targetID.Valid {
-			err = mdb.deleteAddressByID(recipAddr)
-			if err != nil {
+			fmt.Printf("RemRecip %s: %s\n", recipParts.dump(), err)
+			if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
+				return ErrMdbRecipientNotFound
+			} else {
 				return err
 			}
 		}
-		if aliasCnt <= 1 { // last one, remove the alias address too
-			err = mdb.deleteAddressByID(aliasAddr)
-			if err != nil {
+		qa := `SELECT id FROM alias WHERE address = ? AND target IS ? AND extension IS ?`
+		row := mdb.tx.QueryRow(qa, aliasAddr.id, recipAddr.id, ext)
+		switch err = row.Scan(&aliasID); err {
+		case sql.ErrNoRows:
+			return ErrMdbRecipientNotFound
+		case nil:
+			if _, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID); err != nil {
 				return err
 			}
+			if err = mdb.deleteAddressByID(recipAddr); err != nil { // try to delete target
+				if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
+					return err
+				}
+			}
+		default:
+			return err
 		}
 	} else {
-		return ErrMdbRecipientNotFound
+		qa := `SELECT id FROM alias WHERE address = ? AND target IS NULL AND extension IS ?`
+		row := mdb.tx.QueryRow(qa, aliasAddr.id, ext)
+		switch err = row.Scan(&aliasID); err {
+		case sql.ErrNoRows:
+			return ErrMdbRecipientNotFound
+		case nil:
+			if _, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID); err != nil {
+				return err
+			}
+		default:
+			return err
+		}
+	}
+	err = mdb.deleteAddressByID(aliasAddr) // try to delete the alias too. could have a cascade but...
+	if err != nil {
+		if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
+			return err
+		}
 	}
 	return nil
 }
