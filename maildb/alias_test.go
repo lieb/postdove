@@ -56,7 +56,7 @@ func TestAliasOps(t *testing.T) {
 	defer mdb.Close()
 
 	// Test simple MakeAlias
-	recips = append(recips, "rednose@clown.com")
+	recips = []string{"rednose@clown.com"}
 	if err = mdb.MakeAlias("bozo@clown.com", recips); err != nil {
 		t.Errorf("MakeAlias: bozo@clown.com: %s", err)
 	}
@@ -80,8 +80,7 @@ func TestAliasOps(t *testing.T) {
 	}
 
 	// Test /etc/aliases type
-	recips = nil
-	recips = append(recips, "| cat > /dev/null")
+	recips = []string{"| cat > /dev/null"}
 	if err = mdb.MakeAlias("rebar", recips); err != nil {
 		t.Errorf("MakeAlias: rebar: %s", err)
 	}
@@ -105,8 +104,7 @@ func TestAliasOps(t *testing.T) {
 	}
 
 	// Add another to bozo@clown
-	recips = nil
-	recips = append(recips, "micky@clown.com")
+	recips = []string{"micky@clown.com"}
 	if err = mdb.MakeAlias("bozo@clown.com", recips); err != nil {
 		t.Errorf("MakeAlias: add micky to bozo@clown.com: %s", err)
 	}
@@ -130,8 +128,7 @@ func TestAliasOps(t *testing.T) {
 	}
 
 	// Add another to rebar
-	recips = nil
-	recips = append(recips, "/tmp/rubbish")
+	recips = []string{"/tmp/rubbish"}
 	if err = mdb.MakeAlias("rebar", recips); err != nil {
 		t.Errorf("MakeAlias: rebar: %s", err)
 	}
@@ -156,7 +153,7 @@ func TestAliasOps(t *testing.T) {
 
 	// Test a virtual type with pipe for failure
 	recips = nil
-	recips = append(recips, "/drain.txt")
+	recips = []string{"/drain.txt"}
 	err = mdb.MakeAlias("pipe@plumbing", recips)
 	if err != nil {
 		if err != ErrMdbAddrNoAddr {
@@ -292,6 +289,164 @@ func TestAliasOps(t *testing.T) {
 			if a.String() != res[i] {
 				t.Errorf("expected %s, got %s", res[i], a.String())
 			}
+		}
+	}
+
+	// Now delete bill@plumbers.com of steve@office
+	if err = mdb.RemoveRecipient("steve@office", "bill@plumbers.com"); err != nil {
+		t.Errorf("Remove bill@plumbers: %s", err)
+	} else if al_list, err = mdb.LookupAlias("steve@office"); err != nil {
+		t.Errorf("Lookup truncated steve@office: %s", err)
+	} else if len(al_list) != 1 {
+		t.Errorf("Look up of modified steve@office expected 1 alias, got %d",
+			len(al_list))
+	} else {
+		a := al_list[0]
+		if a.String() != "steve@office mike@shovel.org" {
+			t.Errorf("Truncated steve@office should be \"steve@office mike@shovel.org\", got %s",
+				a.String())
+		}
+	}
+
+	// then the other (last) from steve@office
+	if err = mdb.RemoveRecipient("steve@office", "mike@shovel.org"); err != nil {
+		t.Errorf("Remove bill@plumbers: %s", err)
+	}
+	al_list, err = mdb.LookupAlias("steve@office")
+	if err == nil {
+		t.Errorf("Lookup of deleted steve@office should have failed")
+	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
+		t.Errorf("Lookup of deleted steve@office: %s", err)
+	}
+
+	// remove a pipe recipient
+	if err = mdb.RemoveRecipient("rebar", "| cat > /dev/null"); err != nil {
+		t.Errorf("Remove | cat > /dev/null: %s", err)
+	} else if al_list, err = mdb.LookupAlias("rebar"); err != nil {
+		t.Errorf("Lookup truncated rebar: %s", err)
+	} else if len(al_list) != 1 {
+		t.Errorf("Look up of modified rebar expected 1 alias, got %d",
+			len(al_list))
+	} else {
+		a := al_list[0]
+		if a.String() != "rebar: /tmp/rubbish" {
+			t.Errorf("Truncated rebar should be \"rebar: /tmp/rubbish\", got %s",
+				a.String())
+		}
+	}
+
+	// then the other (last) from rebar
+	if err = mdb.RemoveRecipient("rebar", "/tmp/rubbish"); err != nil {
+		t.Errorf("Remove bill@plumbers: %s", err)
+	}
+	al_list, err = mdb.LookupAlias("rebar")
+	if err == nil {
+		t.Errorf("Lookup of deleted rebar should have failed")
+	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
+		t.Errorf("Lookup of deleted rebar: %s", err)
+	}
+
+	// now remove the whole alias of all that remain
+	if err = mdb.RemoveAlias("miller@office"); err != nil {
+		t.Errorf("Remove miller@office: %s", err)
+	}
+	al_list, err = mdb.LookupAlias("miller@office")
+	if err == nil {
+		t.Errorf("Lookup of deleted miller@office should have failed")
+	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
+		t.Errorf("Lookup of deleted miller@office: %s", err)
+	}
+
+	if err = mdb.RemoveAlias("bozo@clown.com"); err != nil {
+		t.Errorf("Remove bozo@clown.com: %s", err)
+	}
+	al_list, err = mdb.LookupAlias("bozo@clown.com")
+	if err == nil {
+		t.Errorf("Lookup of deleted bozo@clown.com should have failed")
+	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
+		t.Errorf("Lookup of deleted bozo@clown.com: %s", err)
+	}
+
+	if err = mdb.RemoveAlias("steve@clown.com"); err != nil {
+		t.Errorf("Remove steve@clown.com: %s", err)
+	}
+	al_list, err = mdb.LookupAlias("steve@clown.com")
+	if err == nil {
+		t.Errorf("Lookup of deleted steve@clown.com should have failed")
+	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
+		t.Errorf("Lookup of deleted steve@clown.com: %s", err)
+	}
+
+	// now remove the whole alias
+	if err = mdb.RemoveAlias("postfix"); err != nil {
+		t.Errorf("Remove postfix: %s", err)
+	}
+	al_list, err = mdb.LookupAlias("postfix")
+	if err == nil {
+		t.Errorf("Lookup of deleted postfix should have failed")
+	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
+		t.Errorf("Lookup of deleted postfix: %s", err)
+	}
+
+	// the DB should now be empty
+	aCount, dCount = countAddresses(mdb)
+	if aCount != 0 || dCount != 0 {
+		t.Errorf("count after all deletes: expected 0 addr, 0 domain, got %d, %d",
+			aCount, dCount)
+		al_list, err = mdb.LookupAlias("*@*")
+		if err == nil {
+			for _, al = range al_list {
+				t.Errorf("*@* should be gone: %s", al.String())
+			}
+		} else {
+			t.Errorf("LookupAlias of *@* after bad counts, %s", err)
+		}
+		al_list, err = mdb.LookupAlias("*")
+		if err == nil {
+			for _, al = range al_list {
+				t.Errorf("* should be gone: %s", al.String())
+			}
+		} else {
+			t.Errorf("LookupAlias of * after bad counts, %s", err)
+		}
+	}
+
+	// test + extension stuff
+	recips = []string{"bill+spam@soho.org", "dave+spam@soho.org"}
+	if err = mdb.MakeAlias("spam@soho.org", recips); err != nil {
+		t.Errorf("MakeAlias of spam@soho.org: %s", err)
+	}
+	recips = []string{"bill+junk@soho.org", "sue+junk@soho.org"}
+	if err = mdb.MakeAlias("junk@soho.org", recips); err != nil {
+		t.Errorf("MakeAlias of junk@soho.org, %s", err)
+	}
+	if err = mdb.RemoveRecipient("spam@soho.org", "bill+spam@soho.org"); err != nil {
+		t.Errorf("RemoveRecipient bill+spam@soho.org: %s", err)
+	}
+	if al_list, err = mdb.LookupAlias("spam@soho.org"); err != nil {
+		t.Errorf("Lookup of spam@soho.org: %s", err)
+	} else if len(al_list) != 1 {
+		t.Errorf("Lookup of modified spam@soho.org expected 1 alias, go %d",
+			len(al_list))
+	} else {
+		al := al_list[0]
+		if al.String() != "spam@soho.org dave+spam@soho.org" {
+			t.Errorf("Modified spam@soho.org should be \"spam@soho.org dave+spam@soho.org\", got %s",
+				al.String())
+		}
+	}
+
+	// make sure we didn't mess with the other, similar one
+	if al_list, err = mdb.LookupAlias("junk@soho.org"); err != nil {
+		t.Errorf("Lookup of junk@soho.org: %s", err)
+	} else if len(al_list) != 1 {
+		t.Errorf("Lookup of modified spam@soho.org expected 1 alias, go %d",
+			len(al_list))
+	} else {
+		al := al_list[0]
+		if al.String() != "junk@soho.org bill+junk@soho.org, sue+junk@soho.org" {
+			t.Errorf("Modified spam@soho.org should be \"junk@soho.org bill+junk@soho.org, sue+junk@soho.org\", got %s",
+				al.String())
 		}
 	}
 }
