@@ -90,7 +90,6 @@ func (a *Address) dump() string {
 
 // lookupAddress
 // helper to find 'lpart@domain' and return an address id.
-// return nil, nil for "not found"
 // return nil, err for bad stuff
 func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
 	var (
@@ -246,12 +245,12 @@ func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
 	if err != nil {
 		return err
 	}
-	return mdb.deleteAddressByID(addr)
+	return mdb.deleteAddressByAddr(addr)
 }
 
-// deleteAddressByID
+// deleteAddressByAddr
 // we consider foreign key on domain is not really an error here. throw other errors
-func (mdb *MailDB) deleteAddressByID(addr *Address) error {
+func (mdb *MailDB) deleteAddressByAddr(addr *Address) error {
 	_, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
 	if err != nil && !IsErrConstraintForeignKey(err) {
 		return err

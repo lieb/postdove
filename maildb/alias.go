@@ -369,7 +369,7 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 		if targetID.Valid {
 			if recipAddr, err = mdb.lookupAddressByID(targetID.Int64); err != nil {
 				return err
-			} else if err = mdb.deleteAddressByID(recipAddr); err != nil {
+			} else if err = mdb.deleteAddressByAddr(recipAddr); err != nil {
 				if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
 					return err
 				}
@@ -380,7 +380,7 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 		return err
 	}
 	if aliasCnt > 0 { // Found aliases so delete address
-		if err = mdb.deleteAddressByID(aliasAddr); err != nil {
+		if err = mdb.deleteAddressByAddr(aliasAddr); err != nil {
 			if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
 				return err
 			}
@@ -439,7 +439,7 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 			if _, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID); err != nil {
 				return err
 			}
-			if err = mdb.deleteAddressByID(recipAddr); err != nil { // try to delete target
+			if err = mdb.deleteAddressByAddr(recipAddr); err != nil { // try to delete target
 				if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
 					return err
 				}
@@ -461,7 +461,7 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 			return err
 		}
 	}
-	err = mdb.deleteAddressByID(aliasAddr) // try to delete the alias too. could have a cascade but...
+	err = mdb.deleteAddressByAddr(aliasAddr) // try to delete the alias too. could be a cascade but...
 	if err != nil {
 		if !IsErrConstraintForeignKey(err) { // ignore foreign key, used elsewhere
 			return err

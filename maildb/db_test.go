@@ -81,7 +81,7 @@ func doAddressDeleteByID(mdb *MailDB, a *Address) error {
 		return err
 	}
 	defer mdb.end(err == nil)
-	err = mdb.deleteAddressByID(a)
+	err = mdb.deleteAddressByAddr(a)
 	return err
 }
 
