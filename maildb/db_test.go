@@ -261,7 +261,7 @@ func TestDBLoad(t *testing.T) {
 
 	// delete a bogus address in a bogus domain
 	if err = doAddressDelete(mdb, "foo@baz"); err != nil {
-		if err != ErrMdbDomainNotFound {
+		if err != ErrMdbAddressNotFound {
 			t.Errorf("delete of foo@baz failed: %s", err)
 		}
 	} else {
