@@ -93,41 +93,27 @@ func (a *Address) dump() string {
 // return nil, err for bad stuff
 func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
 	var (
-		domID sql.NullInt64
-		dname string
-		row   *sql.Row
-		err   error
+		row *sql.Row
+		err error
 	)
 
 	if ap.domain == "" { // An /etc/aliases entry
-		domID = sql.NullInt64{
-			Valid: false,
-			Int64: 0,
-		}
-	} else { // A Virtual alias entry
-		row = mdb.db.QueryRow("SELECT id, name FROM domain WHERE name = ?", ap.domain)
-		switch err = row.Scan(&domID, &dname); err {
-		case sql.ErrNoRows:
-			return nil, ErrMdbDomainNotFound
-		case nil: // existing domain
-			break
-		default:
-			return nil, err
-		}
-	}
-	addr := &Address{
-		domain: domID,
-	}
-	if domID.Valid {
-		addr.dname = dname
-	}
-	qa := `
-SELECT id, localpart, domain, transport, rclass, access
-FROM address WHERE localpart = ? AND domain IS ?
+		qa := `
+SELECT id, localpart, domain, transport, rclass, access, "" FROM address
+ WHERE localpart = ? AND domain IS NULL
 `
-	row = mdb.db.QueryRow(qa, ap.lpart, domID)
+		row = mdb.db.QueryRow(qa, ap.lpart)
+	} else { // A virtual alias entry
+		qa := `
+SELECT a.id, a.localpart, a.domain, a.transport, a.rclass, a.access, d.name
+ FROM address AS a, domain AS d
+ WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
+`
+		row = mdb.db.QueryRow(qa, ap.lpart, ap.domain)
+	}
+	addr := &Address{}
 	switch err = row.Scan(&addr.id, &addr.localpart, &addr.domain,
-		&addr.transport, &addr.rclass, &addr.access); err {
+		&addr.transport, &addr.rclass, &addr.access, &addr.dname); err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
