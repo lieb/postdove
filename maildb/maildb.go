@@ -29,6 +29,7 @@ import (
 	"github.com/mattn/go-sqlite3" // do I really need this here?
 )
 
+// Error return constants
 var (
 	ErrMdbAddressEmpty      = errors.New("address is empty")
 	ErrMdbTargetEmpty       = errors.New("target is empty")
@@ -48,6 +49,18 @@ var (
 	ErrMdbAddressTarget     = errors.New("virtual alias must have an addressable target")
 	ErrMdbNoRecipients      = errors.New("No recipients supplied for alias")
 	ErrMdbRecipientNotFound = errors.New("alias recipient not found")
+	ErrMdbBadMboxWild       = errors.New("Badly formed mailbox lookup")
+	ErrMdbMboxNoDomain      = errors.New("Mailbox must have a domain")
+	ErrMdbNotMbox           = errors.New("address is not a mailbox")
+	ErrMdbIsAlias           = errors.New("New mailbox already an alias")
+	ErrMdbMboxBadPw         = errors.New("Unrecognized password type")
+	ErrMdbBadName           = errors.New("Not a correct name")
+)
+
+// Useful constants
+var (
+	NullStr = sql.NullString{Valid: false}
+	NullInt = sql.NullInt64{Valid: false}
 )
 
 // Sqlite3 errors we are interested in
