@@ -145,11 +145,13 @@ CREATE VIEW "virt_alias" AS SELECT aa.localpart as lcl, ad.name as name, ta.loca
 DROP TABLE IF EXISTS "VMailbox";
 CREATE TABLE "VMailbox" (
        id INTEGER PRIMARY KEY,
-       enable INTEGER DEFAULT 1, -- to disable imap+lmtp
-       uid INTEGER,
-       gid INTEGER,
-       home TEXT,  -- just home part for dovecot config of mail_home
+       pw_type TEXT NOT NULL DEFAULT 'PLAIN',
        password TEXT,
+       uid INTEGER, -- if these are NULL, use domain values
+       gid INTEGER,
+       quota INTEGER DEFAULT 1000, -- We set it to MB in view. NULL is no quota
+       home TEXT,  -- just home part for dovecot config of mail_home
+       enable INTEGER NOT NULL DEFAULT 1, -- to disable imap+lmtp
        CONSTRAINT vmbox_addr FOREIGN KEY(id) REFERENCES Address(id));
 
 -- user_mailbox is a combination of an address row and a vmailbox row
