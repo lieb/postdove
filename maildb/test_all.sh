@@ -6,3 +6,4 @@ go test -run=TestTransport
 go test -run=TestDomain
 go test -run=TestDBLoad
 go test -run=TestAliasOps
+go test -run=TestMailbox
