@@ -67,7 +67,7 @@ func TestMailbox(t *testing.T) {
 	}
 
 	// see if we can add a user
-	mb, err = mdb.NewVmailbox("luke@skywalker", "", NullStr, NullInt, NullInt, NullInt, NullStr, NullInt)
+	mb, err = mdb.NewVmailbox("luke@skywalker", "", "", "", "", "", "")
 	if err != nil {
 		t.Errorf("luke@skywalker: %s", err)
 		return // no sense continuing if we can do this...
@@ -87,6 +87,73 @@ func TestMailbox(t *testing.T) {
 		} else {
 			if mb_list[0].String() != "luke@skywalker:{PLAIN}*:::1000::true" {
 				t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}*:::1000::true\", got %s",
+					mb_list[0].String())
+			}
+			if !mb_list[0].IsEnabled() {
+				t.Errorf("Mailbox should start out as enabled")
+			}
+		}
+	}
+
+	// Play with it
+	if err = mdb.DisableVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Disable of luke@skywalker, %s", err)
+	}
+	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	if err != nil {
+		t.Errorf("luke@skywalker after disable, %s", err)
+	} else {
+		if mb_list[0].IsEnabled() {
+			t.Errorf("luke@skywalker should be disabled")
+		}
+	}
+	if err = mdb.EnableVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Enable of luke@skywalker, %s", err)
+	}
+	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	if err != nil {
+		t.Errorf("luke@skywalker after enable, %s", err)
+	} else {
+		if !mb_list[0].IsEnabled() {
+			t.Errorf("luke@skywalker should be enabled")
+		}
+	}
+
+	// Change password
+	if mdb.ChangePassword("luke@skywalker", "Not123456", ""); err != nil {
+		t.Errorf("Change password luke@skywalker, %s", err)
+	}
+	// See if it changes
+	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	if err != nil {
+		t.Errorf("Lookup luke@skywalker, %s", err)
+	} else {
+		if len(mb_list) != 1 {
+			t.Errorf("Lookup luke@skywalker: expected 1 returned, got %d", len(mb_list))
+		} else {
+			if mb_list[0].String() != "luke@skywalker:{PLAIN}Not123456:::1000::true" {
+				t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}Not123456:::1000::true\", got %s",
+					mb_list[0].String())
+			}
+			if !mb_list[0].IsEnabled() {
+				t.Errorf("Mailbox should start out as enabled")
+			}
+		}
+	}
+	// Change password and type
+	if mdb.ChangePassword("luke@skywalker", "Sn3@kyB1ts", "sha256"); err != nil {
+		t.Errorf("Change password luke@skywalker, %s", err)
+	}
+	// See if it changed
+	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	if err != nil {
+		t.Errorf("Lookup luke@skywalker, %s", err)
+	} else {
+		if len(mb_list) != 1 {
+			t.Errorf("Lookup luke@skywalker: expected 1 returned, got %d", len(mb_list))
+		} else {
+			if mb_list[0].String() != "luke@skywalker:{SHA256}Sn3@kyB1ts:::1000::true" {
+				t.Errorf("Luke@skywalker: expected \"luke@skywalker:{SHA256}Sn3@kyB1ts:::1000::true\", got %s",
 					mb_list[0].String())
 			}
 		}
