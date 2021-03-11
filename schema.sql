@@ -149,9 +149,9 @@ CREATE TABLE "VMailbox" (
        password TEXT,
        uid INTEGER, -- if these are NULL, use domain values
        gid INTEGER,
-       quota INTEGER DEFAULT 1000, -- We set it to MB in view. NULL is no quota
+       quota INTEGER DEFAULT 1000, -- in MB. NULL is no quota
        home TEXT,  -- just home part for dovecot config of mail_home
-       enable INTEGER NOT NULL DEFAULT 1, -- to disable imap+lmtp
+       enable INTEGER NOT NULL DEFAULT 1, -- bool to disable imap+lmtp
        CONSTRAINT vmbox_addr FOREIGN KEY(id) REFERENCES Address(id));
 
 -- user_mailbox is a combination of an address row and a vmailbox row
