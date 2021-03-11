@@ -23,6 +23,7 @@ package maildb
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // do I really need this?
@@ -79,6 +80,15 @@ func (vm *VMailbox) String() string {
 	}
 
 	return line.String()
+}
+
+// IsEnabled
+func (mb *VMailbox) IsEnabled() bool {
+	if mb.enable != 0 {
+		return true
+	} else {
+		return false
+	}
 }
 
 // LookupVMailbox
@@ -167,34 +177,83 @@ func (mdb *MailDB) lookupVMailboxByAddr(addr *Address) (*VMailbox, error) {
 }
 
 // NewVmailbox
-func (mdb *MailDB) NewVmailbox(vaddr string, pw_type string, password sql.NullString,
-	uid sql.NullInt64, gid sql.NullInt64, quota sql.NullInt64,
-	home sql.NullString, enable sql.NullInt64) (*VMailbox, error) {
+// An empty string for an arg implies take the schema default
+func (mdb *MailDB) NewVmailbox(vaddr string, passwd string,
+	userid string, grpid string, quotaLim string,
+	mailhome string, enabled string) (*VMailbox, error) {
 	var (
 		err      error
 		row      *sql.Row
 		ap       *AddressParts
+		password sql.NullString
+		uid      sql.NullInt64
+		gid      sql.NullInt64
+		quota    sql.NullInt64
+		home     sql.NullString
+		enable   sql.NullInt64
 		addr     *Address
 		rowCount int64
 	)
+
+	// First validate args
 	if ap, err = DecodeRFC822(vaddr); err != nil {
 		return nil, err
 	}
 	if ap.domain == "" {
 		return nil, ErrMdbMboxNoDomain
 	}
-	switch strings.ToLower(pw_type) { // This is not an exhaustive list ATM
-	case "":
-		break // use default
-	case "plain":
-		pw_type = "PLAIN"
-	case "crypt":
-		pw_type = "CRYPT"
-	case "sha256":
-		pw_type = "SHA256"
-	default:
-		return nil, ErrMdbMboxBadPw
+	if passwd == "" {
+		password = NullStr
+	} else {
+		password = sql.NullString{Valid: true, String: passwd}
 	}
+	if userid == "" {
+		uid = NullInt
+	} else {
+		if i, err := strconv.ParseInt(userid, 10, 64); err != nil {
+			return nil, ErrMdbBadUid
+		} else {
+			uid = sql.NullInt64{Valid: true, Int64: i}
+		}
+	}
+	if grpid == "" {
+		gid = NullInt
+	} else {
+		if i, err := strconv.ParseInt(grpid, 10, 64); err != nil {
+			return nil, ErrMdbBadGid
+		} else {
+			gid = sql.NullInt64{Valid: true, Int64: i}
+		}
+	}
+	if quotaLim == "" {
+		quota = NullInt
+	} else {
+		if i, err := strconv.ParseInt(quotaLim, 10, 64); err != nil {
+			return nil, err
+		} else {
+			quota = sql.NullInt64{Valid: true, Int64: i}
+		}
+	}
+	if mailhome == "" {
+		home = NullStr
+	} else {
+		home = sql.NullString{Valid: true, String: mailhome}
+	}
+	if enabled == "" {
+		enable = NullInt
+	} else {
+		b, err := strconv.ParseBool(enabled)
+		if err != nil {
+			return nil, err
+		} else {
+			if b {
+				enable = sql.NullInt64{Valid: true, Int64: 1}
+			} else {
+				enable = sql.NullInt64{Valid: true, Int64: 0}
+			}
+		}
+	}
+
 	// Enter a transaction for everything else
 	if err = mdb.begin(); err != nil {
 		return nil, err
@@ -231,12 +290,6 @@ func (mdb *MailDB) NewVmailbox(vaddr string, pw_type string, password sql.NullSt
 		return nil, fmt.Errorf("NewVmailbox: could not insert new mailbox, %s", err)
 	}
 	// This is a little convoluted but this way we can set the defaults in the schema, not the app code
-	if pw_type != "" {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET pw_type = ? WHERE id IS ?", pw_type, addr.id)
-		if err != nil {
-			return nil, err
-		}
-	}
 	if password.Valid {
 		_, err = mdb.tx.Exec("UPDATE vmailbox SET password = ? WHERE id IS ?", password.String, addr.id)
 		if err != nil {
@@ -286,91 +339,128 @@ func (mdb *MailDB) NewVmailbox(vaddr string, pw_type string, password sql.NullSt
 }
 
 // ChangePassword
-
-// EnableVmailbox
-func (mdb *MailDB) EnableVmailbox(vaddr string) error {
+func (mdb *MailDB) ChangePassword(vaddr string, newPassword string, pwType string) error {
 	var (
 		ap  *AddressParts
 		a   *Address
+		res sql.Result
 		err error
 	)
 
 	if ap, err = DecodeRFC822(vaddr); err != nil {
 		return err
 	}
-
-	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-
-	if a, err = mdb.lookupAddress(ap); err != nil {
-		return err
-	}
-	_, err = mdb.tx.Exec("UPDATE vmailbox SET enable = 1 WHERE id IS ?", a.id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// DisableVmailbox
-func (mdb *MailDB) DisableVmailbox(vaddr string) error {
-	var (
-		ap  *AddressParts
-		a   *Address
-		err error
-	)
-
-	if ap, err = DecodeRFC822(vaddr); err != nil {
-		return err
-	}
-
-	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-
-	if a, err = mdb.lookupAddress(ap); err != nil {
-		return err
-	}
-	_, err = mdb.tx.Exec("UPDATE vmailbox SET enable = 0 WHERE id IS ?", a.id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// ActiveVmailbox
-func (mdb *MailDB) ActiveVmailbox(vaddr string) bool {
-	var (
-		ap     *AddressParts
-		a      *Address
-		enable int
-		err    error
-	)
-
-	if ap, err = DecodeRFC822(vaddr); err != nil {
-		return false
-	}
-	if a, err = mdb.lookupAddress(ap); err != nil {
-		return false
-	}
-	row := mdb.db.QueryRow("SELECT enable FROM vmailbox WHERE id IS ?", a.id)
-	switch err = row.Scan(&enable); err {
-	case sql.ErrNoRows:
-		return false // not a mailbox, not active QED
-	case nil:
-		if enable != 0 {
-			return true
-		} else {
-			return false
-		}
+	switch strings.ToLower(pwType) { // This is not an exhaustive list ATM
+	case "":
+		break // use default
+	case "plain":
+		pwType = "PLAIN"
+	case "crypt":
+		pwType = "CRYPT"
+	case "sha256":
+		pwType = "SHA256"
 	default:
-		return false
+		return ErrMdbMboxBadPw
 	}
+
+	// Enter a transaction for everything else
+	if err = mdb.begin(); err != nil {
+		return err
+	}
+	defer mdb.end(err == nil)
+
+	if a, err = mdb.lookupAddress(ap); err != nil {
+		return err
+	}
+	if pwType == "" {
+		res, err = mdb.tx.Exec("UPDATE vmailbox SET password = ? WHERE id IS ?", newPassword, a.id)
+	} else {
+		res, err = mdb.tx.Exec("UPDATE vmailbox SET pw_type = ?, password = ? WHERE id IS ?",
+			pwType, newPassword, a.id)
+	}
+	if err != nil {
+		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbBadUpdate
+		}
+	}
+	return nil
+}
+
+// EnableVMailbox
+func (mdb *MailDB) EnableVMailbox(vaddr string) error {
+	var (
+		ap  *AddressParts
+		a   *Address
+		res sql.Result
+		err error
+	)
+
+	if ap, err = DecodeRFC822(vaddr); err != nil {
+		return err
+	}
+
+	// Enter a transaction for everything else
+	if err = mdb.begin(); err != nil {
+		return err
+	}
+	defer mdb.end(err == nil)
+
+	if a, err = mdb.lookupAddress(ap); err != nil {
+		return err
+	}
+	res, err = mdb.tx.Exec("UPDATE vmailbox SET enable = 1 WHERE id IS ?", a.id)
+	if err != nil {
+		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbBadUpdate
+		}
+	}
+	return nil
+}
+
+// DisableVMailbox
+func (mdb *MailDB) DisableVMailbox(vaddr string) error {
+	var (
+		ap  *AddressParts
+		a   *Address
+		res sql.Result
+		err error
+	)
+
+	if ap, err = DecodeRFC822(vaddr); err != nil {
+		return err
+	}
+
+	// Enter a transaction for everything else
+	if err = mdb.begin(); err != nil {
+		return err
+	}
+	defer mdb.end(err == nil)
+
+	if a, err = mdb.lookupAddress(ap); err != nil {
+		return err
+	}
+	res, err = mdb.tx.Exec("UPDATE vmailbox SET enable = 0 WHERE id IS ?", a.id)
+	if err != nil {
+		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbBadUpdate
+		}
+	}
+	return nil
 }
 
 //DeleteVMailbox
