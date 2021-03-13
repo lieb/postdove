@@ -100,6 +100,51 @@ func (d *Domain) dump() string {
 	return line.String()
 }
 
+// IsInternet
+func (d *Domain) IsInternet() bool {
+	if d.class == internet {
+		return true
+	} else {
+		return false
+	}
+}
+
+// IsLocal
+func (d *Domain) IsLocal() bool {
+	if d.class == local {
+		return true
+	} else {
+		return false
+	}
+}
+
+// IsRelay
+func (d *Domain) IsRelay() bool {
+	if d.class == relay {
+		return true
+	} else {
+		return false
+	}
+}
+
+// IsVirtual
+func (d *Domain) IsVirtual() bool {
+	if d.class == virtual {
+		return true
+	} else {
+		return false
+	}
+}
+
+// IsVmailbox
+func (d *Domain) IsVmailbox() bool {
+	if d.class == vmailbox {
+		return true
+	} else {
+		return false
+	}
+}
+
 //LookupDomain
 func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
 	if name == "" {
@@ -179,6 +224,59 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 	return d, nil
 }
 
+// SetTransport
+
+// SetAccess
+
+// SetVUid
+func (mdb *MailDB) SetVUid(name string, vuid int) error {
+	res, err := mdb.db.Exec("UPDATE domain SET vuid = ? WHERE name = ?", vuid, name)
+	if err != nil {
+		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbDomainNotFound
+		}
+	}
+	return nil
+}
+
+// SetVGid
+func (mdb *MailDB) SetVGid(name string, vgid int) error {
+	res, err := mdb.db.Exec("UPDATE domain SET vgid = ? WHERE name = ?", vgid, name)
+	if err != nil {
+		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbDomainNotFound
+		}
+	}
+	return nil
+}
+
+// SetRclass
+func (mdb *MailDB) SetRclass(name string, rclass string) error {
+	res, err := mdb.db.Exec("UPDATE domain SET rclass = ? WHERE name = ?", rclass, name)
+	if err != nil {
+		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbDomainNotFound
+		}
+	}
+	return nil
+}
+
+// DeleteDomain
 func (mdb *MailDB) DeleteDomain(name string) error {
 	res, err := mdb.db.Exec("DELETE FROM domain WHERE name = ?", name)
 	if err != nil {
@@ -195,13 +293,3 @@ func (mdb *MailDB) DeleteDomain(name string) error {
 	}
 	return nil
 }
-
-// SetTransport
-
-// SetAccess
-
-// SetVUid
-
-// SetVGid
-
-// SetRclass
