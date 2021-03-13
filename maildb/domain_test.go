@@ -76,6 +76,17 @@ func TestDomain(t *testing.T) {
 		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
 			t.Errorf("Insert foo: bad dump(), %s", d.dump())
 		}
+		if !d.IsInternet() {
+			t.Errorf("IsInternet should be true")
+		} else if d.IsLocal() {
+			t.Errorf("IsLocal should be false")
+		} else if d.IsRelay() {
+			t.Errorf("IsRelay should be false")
+		} else if d.IsVirtual() {
+			t.Errorf("IsVirtual should be false")
+		} else if d.IsVmailbox() {
+			t.Errorf("IsVmailbox should be false")
+		}
 	}
 
 	// Try some bad args...
@@ -113,6 +124,34 @@ func TestDomain(t *testing.T) {
 		}
 	}
 
+	// Set some of the fields
+	if err = mdb.SetVUid("foo", 53); err != nil {
+		t.Errorf("SetVUid foo, %s", err)
+	} else if d, err = mdb.LookupDomain("foo"); err != nil {
+		t.Errorf("Lookup foo after setuid, %s", err)
+	} else {
+		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=<NULL>, rclass=DEFAULT." {
+			t.Errorf("SetVUid did not set uid, %s", d.dump())
+		}
+	}
+	if err = mdb.SetVGid("foo", 42); err != nil {
+		t.Errorf("SetVGid foo, %s", err)
+	} else if d, err = mdb.LookupDomain("foo"); err != nil {
+		t.Errorf("Lookup foo after setgid, %s", err)
+	} else {
+		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=DEFAULT." {
+			t.Errorf("SetVUid did not set uid, %s", d.dump())
+		}
+	}
+	if err = mdb.SetRclass("foo", "spam"); err != nil {
+		t.Errorf("SetRclassid foo, %s", err)
+	} else if d, err = mdb.LookupDomain("foo"); err != nil {
+		t.Errorf("Lookup foo after rclass, %s", err)
+	} else {
+		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=spam." {
+			t.Errorf("SetVUid did not set uid, %s", d.dump())
+		}
+	}
 	// Lookup something not there
 	d, err = mdb.LookupDomain("baz")
 	if err == nil {
