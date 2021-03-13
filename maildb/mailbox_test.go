@@ -59,7 +59,7 @@ func TestMailbox(t *testing.T) {
 		t.Errorf("Transaction begin failed: %s", err)
 		return
 	}
-	_, err = mdb.InsertDomain("skywalker")
+	_, err = mdb.InsertDomain("skywalker", "vmailbox")
 	mdb.end(err == nil)
 	if err != nil {
 		t.Errorf("Insert of skywalker failed, %s", err)

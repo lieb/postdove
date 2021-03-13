@@ -26,16 +26,37 @@ import (
 	"strings"
 )
 
+// Class
+// domain classes are used for easy categorizing domains, some of
+// which we actually own and others (like relay) are somewhere else.
+type Class int
+
+const (
+	internet Class = iota // obviously... for those "others"
+	local                 // local domains, i.e. "localhost", my-domain etc.
+	relay                 // domains that will be relayed by us
+	virtual               // mainly virtual aliases
+	vmailbox              // domains handled by dovecot
+)
+
 // Domain
 type Domain struct {
 	id        int64
 	name      string
-	class     int64
+	class     Class
 	transport sql.NullInt64
 	access    sql.NullInt64
 	vuid      sql.NullInt64
 	vgid      sql.NullInt64
 	rclass    string
+}
+
+var domainClass = []string{
+	internet: "internet",
+	local:    "local",
+	relay:    "relay",
+	virtual:  "virtual",
+	vmailbox: "vmailbox",
 }
 
 // String
@@ -54,7 +75,7 @@ func (d *Domain) dump() string {
 		line strings.Builder
 	)
 
-	fmt.Fprintf(&line, "id=%d, name=%s, class=%d, ", d.id, d.name, d.class)
+	fmt.Fprintf(&line, "id=%d, name=%s, class=%s, ", d.id, d.name, domainClass[d.class])
 	if d.transport.Valid {
 		fmt.Fprintf(&line, "transport=%d, ", d.transport.Int64)
 	} else {
@@ -102,11 +123,38 @@ func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
 
 //InsertDomain
 // requires transaction. May need a non-tx version, i.e. insertDomainTx
-func (mdb *MailDB) InsertDomain(name string) (*Domain, error) {
+func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
+	var (
+		dclass Class
+		res    sql.Result
+		err    error
+	)
+
 	if name == "" || strings.ContainsAny(name, "\n\r\t\f{}()[];\"") {
 		return nil, ErrMdbBadName
 	}
-	res, err := mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", name)
+	switch strings.ToLower(class) {
+	case "":
+		dclass = internet
+	case "internet":
+		dclass = internet
+	case "local":
+		dclass = local
+	case "relay":
+		dclass = relay
+	case "virtual":
+		dclass = virtual
+	case "vmailbox":
+		dclass = vmailbox
+	default:
+		return nil, ErrMdbBadClass
+	}
+
+	if class == "" { // use the schema default
+		res, err = mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", name)
+	} else {
+		res, err = mdb.tx.Exec("INSERT INTO domain (name, class) VALUES (?, ?)", name, int64(dclass))
+	}
 	if err != nil {
 		if IsErrConstraintUnique(err) {
 			return nil, ErrMdbDupDomain

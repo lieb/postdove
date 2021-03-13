@@ -55,6 +55,7 @@ var (
 	ErrMdbIsAlias           = errors.New("New mailbox already an alias")
 	ErrMdbMboxBadPw         = errors.New("Unrecognized password type")
 	ErrMdbBadName           = errors.New("Not a correct name")
+	ErrMdbBadClass          = errors.New("Unknown domain class")
 	ErrMdbBadUid            = errors.New("User ID must be unsigned decimal integer")
 	ErrMdbBadGid            = errors.New("Group ID must be unsigned decimal integer")
 	ErrMdbBadUpdate         = errors.New("Update did not happen")

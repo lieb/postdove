@@ -33,13 +33,13 @@ import (
 )
 
 // doInsertDomain
-func doInsertDomain(mdb *MailDB, name string) (d *Domain, err error) {
+func doInsertDomain(mdb *MailDB, name string, class string) (d *Domain, err error) {
 	if err = mdb.begin(); err != nil {
 		return
 	}
 	defer mdb.end(err == nil)
 
-	d, err = mdb.InsertDomain(name)
+	d, err = mdb.InsertDomain(name, class)
 	return
 }
 
@@ -64,7 +64,7 @@ func TestDomain(t *testing.T) {
 	defer mdb.Close()
 
 	// Try to insert a domain
-	d, err = doInsertDomain(mdb, "foo")
+	d, err = doInsertDomain(mdb, "foo", "")
 	if err != nil {
 		t.Errorf("Insert foo: %s", err)
 		return // no need to go further this early
@@ -73,23 +73,30 @@ func TestDomain(t *testing.T) {
 			t.Errorf("Insert foo: bad String(), %s", d.String())
 		}
 		// NOTE: this will fail if you change schema defaults...
-		if d.dump() != "id=1, name=foo, class=0, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
+		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
 			t.Errorf("Insert foo: bad dump(), %s", d.dump())
 		}
 	}
 
 	// Try some bad args...
-	d, err = doInsertDomain(mdb, "")
+	d, err = doInsertDomain(mdb, "", "")
 	if err == nil {
 		t.Errorf("Insert \"\" should have failed")
 	} else if err != ErrMdbBadName {
 		t.Errorf("Insert of \"\": %s", err)
 	}
-	d, err = doInsertDomain(mdb, ";bogus")
+	d, err = doInsertDomain(mdb, ";bogus", "")
 	if err == nil {
 		t.Errorf("Insert \";bogus\" should have failed")
 	} else if err != ErrMdbBadName {
 		t.Errorf("Insert of \";bogus\": %s", err)
+	}
+
+	d, err = doInsertDomain(mdb, "baz", "jazz")
+	if err == nil {
+		t.Errorf("Insert \"jazz\" should have failed")
+	} else if err != ErrMdbBadClass {
+		t.Errorf("Insert of \"jazz\": %s", err)
 	}
 
 	// Lookup should agree with Insert...
@@ -101,7 +108,7 @@ func TestDomain(t *testing.T) {
 			t.Errorf("Lookup foo: bad String(), %s", d.String())
 		}
 		// NOTE: this will fail if you change schema defaults...
-		if d.dump() != "id=1, name=foo, class=0, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
+		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
 			t.Errorf("Lookup foo: bad dump(), %s", d.dump())
 		}
 	}
