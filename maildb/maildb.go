@@ -51,6 +51,7 @@ var (
 	ErrMdbRecipientNotFound = errors.New("alias recipient not found")
 	ErrMdbBadMboxWild       = errors.New("Badly formed mailbox lookup")
 	ErrMdbMboxNoDomain      = errors.New("Mailbox must have a domain")
+	ErrMdbMboxNotMboxDomain = errors.New("Mailbox must be in a vmailbox domain")
 	ErrMdbNotMbox           = errors.New("address is not a mailbox")
 	ErrMdbIsAlias           = errors.New("New mailbox already an alias")
 	ErrMdbMboxBadPw         = errors.New("Unrecognized password type")

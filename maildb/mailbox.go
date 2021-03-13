@@ -262,9 +262,11 @@ func (mdb *MailDB) NewVmailbox(vaddr string, passwd string,
 
 	// The domain must exist. All that dovecot wiring must be in place first
 	// Think of this as a spellcheck...
-	_, err = mdb.LookupDomain(ap.domain)
+	d, err := mdb.LookupDomain(ap.domain)
 	if err != nil {
 		return nil, err
+	} else if !d.IsVmailbox() {
+		return nil, ErrMdbMboxNotMboxDomain
 	}
 	if addr, err = mdb.lookupAddress(ap); err != nil {
 		if err == ErrMdbAddressNotFound { // must be a new user
