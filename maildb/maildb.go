@@ -60,6 +60,7 @@ var (
 	ErrMdbBadUid            = errors.New("User ID must be unsigned decimal integer")
 	ErrMdbBadGid            = errors.New("Group ID must be unsigned decimal integer")
 	ErrMdbBadUpdate         = errors.New("Update did not happen")
+	ErrMdbMboxIsRecip       = errors.New("Mailbox is an alias recipient")
 )
 
 // Useful constants

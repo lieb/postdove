@@ -465,12 +465,15 @@ func (mdb *MailDB) DisableVMailbox(vaddr string) error {
 	return nil
 }
 
-//DeleteVMailbox
+// DeleteVMailbox
+// We also delete the address part but leave the domain alone. Domains are special
+// here because dovecot admin has directory structure that needs the domain intact.
 func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 	var (
-		ap  *AddressParts
-		a   *Address
-		err error
+		ap       *AddressParts
+		a        *Address
+		err      error
+		aliasCnt int
 	)
 
 	if ap, err = DecodeRFC822(vaddr); err != nil {
@@ -486,6 +489,13 @@ func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 	if a, err = mdb.lookupAddress(ap); err != nil {
 		return err
 	}
+	row := mdb.tx.QueryRow("SELECT COUNT(*) FROM alias WHERE target = ?", a.id)
+	if err = row.Scan(&aliasCnt); err != nil {
+		return err
+	}
+	if aliasCnt > 0 { // this would strand an alias. Clean up the alias first
+		return ErrMdbMboxIsRecip
+	}
 	res, err := mdb.tx.Exec("DELETE FROM vmailbox WHERE id IS ?", a.id)
 	if err != nil {
 		return err
@@ -497,8 +507,16 @@ func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 			return ErrMdbNotMbox
 		}
 	}
-	if err = mdb.deleteAddressByAddr(a); err != nil {
+	res, err = mdb.tx.Exec("DELETE FROM address WHERE id IS ?", a.id)
+	if err != nil {
 		return err
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbNotMbox // this should never happen! but...
+		}
 	}
 	return nil
 }
