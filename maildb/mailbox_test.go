@@ -59,13 +59,27 @@ func TestMailbox(t *testing.T) {
 		t.Errorf("Transaction begin failed: %s", err)
 		return
 	}
+
+	// We need a domain before we can add mailboxes
 	_, err = mdb.InsertDomain("skywalker", "vmailbox")
-	mdb.end(err == nil)
 	if err != nil {
 		t.Errorf("Insert of skywalker failed, %s", err)
 		return
 	}
+	_, err = mdb.InsertDomain("nowhere", "relay") // fodder for busted mailboxes
+	mdb.end(err == nil)
+	if err != nil {
+		t.Errorf("Insert of nowhere failed, %s", err)
+		return
+	}
 
+	// See if we can create a mailbox in nowhere
+	mb, err = mdb.NewVmailbox("lost@nowhere", "", "", "", "", "", "")
+	if err == nil {
+		t.Errorf("Add of lost@nowhere should have failed")
+	} else if err != ErrMdbMboxNotMboxDomain {
+		t.Errorf("Add of lost@nowhere, %s", err)
+	}
 	// see if we can add a user
 	mb, err = mdb.NewVmailbox("luke@skywalker", "", "", "", "", "", "")
 	if err != nil {
@@ -173,4 +187,11 @@ func TestMailbox(t *testing.T) {
 		t.Errorf("Delete yoda@skywalker, %s", err)
 	}
 
+	// Clean up by deleting the domains too
+	if err = mdb.DeleteDomain("nowhere"); err != nil {
+		t.Errorf("Failed to remove nowhere, %s", err)
+	}
+	if err = mdb.DeleteDomain("skywalker"); err != nil {
+		t.Errorf("Failed to remove skywalker, %s", err)
+	}
 }
