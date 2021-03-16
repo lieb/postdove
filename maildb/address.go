@@ -237,14 +237,15 @@ func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
 // deleteAddressByAddr
 // we consider foreign key on domain is not really an error here. throw other errors
 func (mdb *MailDB) deleteAddressByAddr(addr *Address) error {
-	_, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
-	if err != nil && !IsErrConstraintForeignKey(err) {
+	res, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
+	if err != nil {
 		return err
-	}
-	if addr.domain.Valid { // See if we can delete the domain too
-		_, err = mdb.tx.Exec("DELETE FROM domain WHERE id = ?", addr.domain.Int64)
-		if err != nil && !IsErrConstraintForeignKey(err) {
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
 			return err
+		} else if c == 0 {
+			return ErrMdbAddressNotFound
 		}
 	}
 	return nil
