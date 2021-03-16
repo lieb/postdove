@@ -294,7 +294,7 @@ func TestAliasOps(t *testing.T) {
 
 	// Now delete bill@plumbers.com of steve@office
 	if err = mdb.RemoveRecipient("steve@office", "bill@plumbers.com"); err != nil {
-		t.Errorf("Remove bill@plumbers: %s", err)
+		t.Errorf("Remove bill@plumbers.com: %s", err)
 	} else if al_list, err = mdb.LookupAlias("steve@office"); err != nil {
 		t.Errorf("Lookup truncated steve@office: %s", err)
 	} else if len(al_list) != 1 {
@@ -308,9 +308,25 @@ func TestAliasOps(t *testing.T) {
 		}
 	}
 
+	// delete a bogus recipient
+	err = mdb.RemoveRecipient("steve@office", "bronco.billy@the.ranch")
+	if err == nil {
+		t.Errorf("delete of bronco.billy should have failed")
+	} else if err != ErrMdbRecipientNotFound {
+		t.Errorf("delete of bronco.billy unexpected error, %s", err)
+	}
+
+	// try to delete a recipient as an alias
+	err = mdb.RemoveAlias("mike@shovel.org")
+	if err == nil {
+		t.Errorf("delete of a mike@shovel.org as an alias did not fail")
+	} else if err != ErrMdbNotAlias {
+		t.Errorf("delete of alias mike@shovel.org unexpected error, %s", err)
+	}
+
 	// then the other (last) from steve@office
 	if err = mdb.RemoveRecipient("steve@office", "mike@shovel.org"); err != nil {
-		t.Errorf("Remove bill@plumbers: %s", err)
+		t.Errorf("Remove mike@shovel.org: %s", err)
 	}
 	al_list, err = mdb.LookupAlias("steve@office")
 	if err == nil {
@@ -337,13 +353,21 @@ func TestAliasOps(t *testing.T) {
 
 	// then the other (last) from rebar
 	if err = mdb.RemoveRecipient("rebar", "/tmp/rubbish"); err != nil {
-		t.Errorf("Remove bill@plumbers: %s", err)
+		t.Errorf("Remove bill@plumbers.com: %s", err)
 	}
 	al_list, err = mdb.LookupAlias("rebar")
 	if err == nil {
 		t.Errorf("Lookup of deleted rebar should have failed")
 	} else if err != ErrMdbAddressNotFound && err != ErrMdbDomainNotFound {
 		t.Errorf("Lookup of deleted rebar: %s", err)
+	}
+
+	// try to remove a bogus alias
+	err = mdb.RemoveAlias("orange.one@putz")
+	if err == nil {
+		t.Errorf("delete of a putz did not fail")
+	} else if err != ErrMdbAddressNotFound {
+		t.Errorf("delete of a putz unexpected error, %s", err)
 	}
 
 	// now remove the whole alias of all that remain
