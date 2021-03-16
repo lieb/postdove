@@ -181,7 +181,7 @@ func TestDBLoad(t *testing.T) {
 		}
 	}
 
-	// third insert is new domain. should have 3 addresses and 2 domains
+	// third insert is new domain. should have 4 addresses and 2 domains
 	_, err = doAddressInsert(mdb, "dave@slip.com")
 	if err != nil {
 		t.Errorf("insert of dave@slip.com failed %s", err)
@@ -210,7 +210,7 @@ func TestDBLoad(t *testing.T) {
 		t.Errorf("dmr: bad dump(), %s", a.dump())
 	}
 
-	// now delete it and check. We should have 2 addresses and 2 domains
+	// now delete it and check. We should have 3 addresses and 2 domains
 	if err = doAddressDeleteByID(mdb, a); err != nil {
 		t.Errorf("delete of dmr failed: %s", err)
 	}
