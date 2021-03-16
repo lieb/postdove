@@ -103,6 +103,26 @@ CREATE TABLE "Alias" (
        UNIQUE(address, target, extension)
        CHECK (target IS NOT NULL OR extension IS NOT NULL));
 
+-- Create triggers to clean up the mess left behind when an alias is deleted
+-- We need two of them. One for the recipient (target) and one for the alias
+-- key (address) itself. Protect over-eager deletes by checking the reference
+-- linkage. This can cascade via the after_addr_del trigger to a domain.
+
+-- Delete addresses so long as no other alias target or a vmailbox references it
+DROP TRIGGER IF EXISTS after_alias_del_recip;
+CREATE TRIGGER after_alias_del_recip AFTER DELETE ON alias
+ WHEN (SELECT count(*) FROM alias WHERE target = OLD.target) < 1
+    AND (SELECT count(*) FROM vmailbox WHERE id = OLD.target) < 1
+  BEGIN
+    DELETE FROM address WHERE id = OLD.target; END;
+
+-- Delete addresses so long as no other alias references it as a target
+DROP TRIGGER IF EXISTS after_alias_del_addr;
+CREATE TRIGGER after_alias_del_addr AFTER DELETE ON alias
+ WHEN (SELECT count(*) FROM alias WHERE address = OLD.address) < 1
+  BEGIN
+    DELETE FROM address WHERE id = OLD.address; END;
+
 -- etc_aliases (local aliases)
 -- alias	recipient, recipient ...
 DROP VIEW IF EXISTS "etc_aliases";
@@ -163,6 +183,21 @@ CREATE TABLE "VMailbox" (
        home TEXT,  -- just home part for dovecot config of mail_home
        enable INTEGER NOT NULL DEFAULT 1, -- bool to disable imap+lmtp
        CONSTRAINT vmbox_addr FOREIGN KEY(id) REFERENCES Address(id));
+
+-- Create trigger to extend address constraint to vmailbox which shares its id
+-- We return an error string naming the app err
+DROP TRIGGER IF EXISTS before_del_mbox;
+CREATE TRIGGER before_del_mbox BEFORE DELETE ON vmailbox
+ WHEN (SELECT count(*) FROM alias WHERE target = OLD.id) > 0
+  BEGIN
+     SELECT RAISE(ABORT, 'ErrMdbMboxIsRecip'); END;
+
+-- Create a trigger to clean up the address on delete
+DROP TRIGGER IF EXISTS after_del_mbox;
+CREATE TRIGGER after_del_mbox AFTER DELETE ON vmailbox
+ WHEN (SELECT count(*) FROM alias WHERE target = OLD.id) < 1
+  BEGIN
+    DELETE FROM address WHERE id = OLD.id; END;
 
 -- user_mailbox is a combination of an address row and a vmailbox row
 -- There are bits of this I do not like, namely the coalesce functions
