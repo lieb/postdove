@@ -173,10 +173,24 @@ func TestMailbox(t *testing.T) {
 		}
 	}
 
-	// Remove it
+	// Remove it first with alias pointing to it
+	luke := []string{"luke@skywalker"}
+	if err = mdb.MakeAlias("rebel@skywalker", luke); err != nil {
+		t.Errorf("Make rebel@skywalker, %s", err)
+	}
 	err = mdb.DeleteVMailbox("luke@skywalker")
-	if err != nil {
-		t.Errorf("Delete luke@skywalker, %s", err)
+	if err == nil {
+		t.Errorf("First delete of luke@skywalker should have failed")
+	} else {
+		if err != ErrMdbMboxIsRecip {
+			t.Errorf("Delete luke@skywalker, %s", err)
+		}
+	}
+	if err = mdb.RemoveAlias("rebel@skywalker"); err != nil {
+		t.Errorf("remove alias rebel@skywalker, %s", err)
+	}
+	if err = mdb.DeleteVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Delete mbox luke@skywalker, %s", err)
 	}
 
 	// Delete a bogus
