@@ -63,6 +63,16 @@ CREATE TABLE "Address" (
        UNIQUE (localpart, domain)
        );
 
+-- create a trigger to delete the domain when addr refs are 0 meaning this is the only
+-- one pointing to it and domain.class != vmailbox
+DROP TRIGGER  IF EXISTS after_addr_del;
+CREATE TRIGGER after_addr_del AFTER DELETE ON address
+ WHEN OLD.domain IS NOT NULL
+    AND (SELECT class FROM domain WHERE id = OLD.domain) != 4
+    AND (SELECT count(*) FROM address WHERE domain = OLD.domain) < 1
+ BEGIN
+  DELETE FROM domain WHERE id = OLD.domain; END;
+
 -- address_transport
 -- return transport for address/domain.
 -- if address doesn't have one, use its domain's transport
