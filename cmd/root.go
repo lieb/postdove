@@ -17,7 +17,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
+	//"fmt"
 	"github.com/spf13/cobra"
 	//"os"
 	//homedir "github.com/mitchellh/go-homedir"
@@ -38,7 +38,7 @@ is used by postfix to manage aliases, domains, and delivery and by dovecot to
 manage email user IMAP/POP3 email accounts`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Run: func(cmd *cobra.Command, args []string) { fmt.Println("Use the TUI", dbFile) },
+	Run: cmdTUI,
 }
 
 // createCmd represents the create command

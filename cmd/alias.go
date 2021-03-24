@@ -31,9 +31,7 @@ from the file named by the -i flag (default stdin '-').
 This is typically the /etc/aliases file that maps various system
 users and email aliases to a specific user or site sysadmin mailbox`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("import alias called infile", dbFile, inFile)
-	},
+	Run:  aliasImport,
 }
 
 // exportAlias do export of an aliases file
@@ -45,9 +43,7 @@ the file named by the -o flag (default stdout '-').
 This is typically the /etc/aliases file that maps various system
 users and email aliases to a specific user or site sysadmin mailbox`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("export alias called outfile", dbFile, outFile)
-	},
+	Run:  aliasExport,
 }
 
 // addAlias do add of an aliases file
@@ -60,9 +56,7 @@ One or more recipients can be added. A recipient can either be a single local ma
 i.e. "root" or "admin", an RFC2822 format email address, or a file or a pipe to a command.
  See aliases(5) man page for details.`,
 	Args: cobra.MinimumNArgs(2), // alias recipient ...
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("add alias")
-	},
+	Run:  aliasAdd,
 }
 
 // deleteAlias do delete of an aliases file
@@ -72,9 +66,7 @@ var deleteAlias = &cobra.Command{
 	Long: `Delete an address alias from the database.
 All of the recipients pointed to by this name will be also deleted`,
 	Args: cobra.ExactArgs(1), // alias name
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("delete alias called")
-	},
+	Run:  aliasDelete,
 }
 
 // editAlias do edit of an aliases file
@@ -83,15 +75,39 @@ var editAlias = &cobra.Command{
 	Short: "Edit the alias address and its recipients in the database",
 	Long:  `Edit a local alias address and its list of recipients.`,
 	Args:  cobra.MaximumNArgs(1), // an alias or all aliases
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("edit alias called")
-	},
+	Run:   aliasEdit,
 }
 
+// linkage to top level commands
 func init() {
 	importCmd.AddCommand(importAlias)
 	exportCmd.AddCommand(exportAlias)
 	addCmd.AddCommand(addAlias)
 	deleteCmd.AddCommand(deleteAlias)
 	editCmd.AddCommand(editAlias)
+}
+
+// aliasImport the aliases in /etc/aliases format from inFile
+func aliasImport(cmd *cobra.Command, args []string) {
+	fmt.Println("import alias called infile", dbFile, inFile)
+}
+
+// aliasExport the aliases in /etc/aliases format to outFile
+func aliasExport(cmd *cobra.Command, args []string) {
+	fmt.Println("export alias called outfile", dbFile, outFile)
+}
+
+// aliasAdd the alias and its recipients
+func aliasAdd(cmd *cobra.Command, args []string) {
+	fmt.Println("add alias")
+}
+
+// aliasDelete the address in the first arg
+func aliasDelete(cmd *cobra.Command, args []string) {
+	fmt.Println("delete alias called")
+}
+
+// aliasEdit the address in the first arg
+func aliasEdit(cmd *cobra.Command, args []string) {
+	fmt.Println("edit alias called")
 }
