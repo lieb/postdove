@@ -24,27 +24,29 @@ import (
 
 // importAlias do import of an aliases file
 var importAlias = &cobra.Command{
-	Use:   "alias [ -i file/path]",
+	Use:   "alias",
 	Short: "Import an alias file in the aliases(5) format",
 	Long: `Import a local aliases file in the aliases(5) format
 from the file named by the -i flag (default stdin '-').
 This is typically the /etc/aliases file that maps various system
 users and email aliases to a specific user or site sysadmin mailbox`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("import alias called")
+		fmt.Println("import alias called infile", dbFile, inFile)
 	},
 }
 
 // exportAlias do export of an aliases file
 var exportAlias = &cobra.Command{
-	Use:   "alias [ -o file/path]",
+	Use:   "alias",
 	Short: "Export aliases alias file in the aliases(5) format",
 	Long: `Export a local aliases file in the aliases(5) format to
 the file named by the -o flag (default stdout '-').
 This is typically the /etc/aliases file that maps various system
 users and email aliases to a specific user or site sysadmin mailbox`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("export alias called")
+		fmt.Println("export alias called outfile", dbFile, outFile)
 	},
 }
 
@@ -57,8 +59,9 @@ user or alias target without a "@domain" part, i.e. "postmaster" or "daemon".
 One or more recipients can be added. A recipient can either be a single local mailbox,
 i.e. "root" or "admin", an RFC2822 format email address, or a file or a pipe to a command.
  See aliases(5) man page for details.`,
+	Args: cobra.MinimumNArgs(2), // alias recipient ...
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("add alias called")
+		fmt.Println("add alias")
 	},
 }
 
@@ -68,6 +71,7 @@ var deleteAlias = &cobra.Command{
 	Short: "Delete an alias from the database.",
 	Long: `Delete an address alias from the database.
 All of the recipients pointed to by this name will be also deleted`,
+	Args: cobra.ExactArgs(1), // alias name
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("delete alias called")
 	},
@@ -78,6 +82,7 @@ var editAlias = &cobra.Command{
 	Use:   "alias address",
 	Short: "Edit the alias address and its recipients in the database",
 	Long:  `Edit a local alias address and its list of recipients.`,
+	Args:  cobra.MaximumNArgs(1), // an alias or all aliases
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("edit alias called")
 	},
@@ -89,14 +94,4 @@ func init() {
 	addCmd.AddCommand(addAlias)
 	deleteCmd.AddCommand(deleteAlias)
 	editCmd.AddCommand(editAlias)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// aliasCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// aliasCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
