@@ -32,6 +32,7 @@ import (
 
 // Error return constants
 var (
+	ErrMdbInTransaction     = errors.New("Already in a transaction")
 	ErrMdbAddressEmpty      = errors.New("address is empty")
 	ErrMdbTargetEmpty       = errors.New("target is empty")
 	ErrMdbAddrIllegalChars  = errors.New("illegal chars in address")
