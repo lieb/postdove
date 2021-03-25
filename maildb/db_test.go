@@ -34,12 +34,15 @@ import (
 
 // makeTestDB
 func makeTestDB(dbFile string, schema string) (*MailDB, error) {
-	c, err := ioutil.ReadFile(schema)
-	if err != nil {
-		return nil, fmt.Errorf("makeTestDB: ReadFile, %s", err)
+	var (
+		mdb *MailDB
+		err error
+	)
+
+	if mdb, err = NewMailDB(dbFile); err != nil {
+		return nil, fmt.Errorf("makeTestDB: %s", err)
 	}
-	mdb, err := loadDB(dbFile, string(c))
-	if err != nil {
+	if err = mdb.LoadSchema(schema); err != nil {
 		return nil, fmt.Errorf("makeTestDB: %s", err)
 	}
 	return mdb, nil

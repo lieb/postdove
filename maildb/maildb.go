@@ -24,6 +24,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strings"
 
 	"github.com/mattn/go-sqlite3" // do I really need this here?
@@ -135,23 +136,19 @@ func NewMailDB(dbPath string) (*MailDB, error) {
 	return mdb, nil
 }
 
-// loadDB
-func loadDB(dbPath string, schema string) (*MailDB, error) {
-	var (
-		mdb *MailDB
-		err error
-	)
-
-	if mdb, err = NewMailDB(dbPath); err != nil {
-		return nil, fmt.Errorf("loadDB: %s", err)
+// LoadSchema
+func (mdb *MailDB) LoadSchema(schema string) error {
+	c, err := ioutil.ReadFile(schema)
+	if err != nil {
+		return fmt.Errorf("LoadSchema: ReadFile, %s", err)
 	}
-	lines := strings.Split(schema, ";\n")
+	lines := strings.Split(string(c), ";\n")
 	for line, req := range lines {
 		if _, err = mdb.db.Exec(req); err != nil {
-			return nil, fmt.Errorf("loadDB: line %d: %s, %s", line, req, err)
+			return fmt.Errorf("loadSchema: line %d: %s, %s", line, req, err)
 		}
 	}
-	return mdb, nil
+	return nil
 }
 
 // begin
