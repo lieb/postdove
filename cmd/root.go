@@ -17,15 +17,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	//"fmt"
+	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
-	//"os"
-	//homedir "github.com/mitchellh/go-homedir"
-	//"github.com/spf13/viper"
 )
 
 var (
 	dbFile string
+	mdb    *maildb.MailDB
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -36,9 +34,11 @@ var rootCmd = &cobra.Command{
 	Long: `Postdove is a management tool to manage the sqlite database file that
 is used by postfix to manage aliases, domains, and delivery and by dovecot to 
 manage email user IMAP/POP3 email accounts`,
+	PersistentPreRunE: openDB,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Run: cmdTUI,
+	Run:               cmdTUI,
+	PersistentPostRun: closeDB,
 }
 
 // createCmd represents the create command
@@ -48,7 +48,7 @@ var createCmd = &cobra.Command{
 	Long: `Create the Sqlite database file and initilize its tables.
 You will also have to do some imports and adds to this otherwise empty database.`,
 	Args: cobra.NoArgs,
-	Run:  cmdCreate,
+	RunE: cmdCreate,
 }
 
 // importCmd represents the import command
@@ -92,6 +92,23 @@ var editCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
+}
+
+// openDB persistent root pre-run on all commands
+// make the DB open for business
+func openDB(cmd *cobra.Command, args []string) error {
+	var err error
+
+	if mdb, err = maildb.NewMailDB(dbFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+// closeDB
+// persistent post-run to clean up the DB
+func closeDB(cmd *cobra.Command, args []string) {
+	mdb.Close()
 }
 
 func init() {

@@ -17,8 +17,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +25,6 @@ var (
 )
 
 // cmdCreate
-func cmdCreate(cmd *cobra.Command, args []string) {
-	fmt.Println("create called", dbFile, schemaFile)
+func cmdCreate(cmd *cobra.Command, args []string) error {
+	return mdb.LoadSchema(schemaFile)
 }
