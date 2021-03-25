@@ -19,7 +19,14 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
+)
+
+var (
+	vUid   int
+	vGid   int
+	rClass string
 )
 
 // importDomain do import of an domaines file
@@ -46,8 +53,8 @@ var addDomain = &cobra.Command{
 	Short: "Add an domain into the database",
 	Long: `Add an domain into the database. The name is the FQDN for the domain.
 The class defines what the domain is used for, i.e. for virtual mailboxes or local/my domain.`,
-	Args: cobra.MinimumNArgs(2), // domain recipient ...
-	Run:  domainAdd,
+	Args: cobra.MinimumNArgs(1), // domain if no second, use DB default
+	RunE: domainAdd,
 }
 
 // deleteDomain do delete of an domaines file
@@ -65,8 +72,8 @@ var editDomain = &cobra.Command{
 	Use:   "domain name",
 	Short: "Edit the named domain and attributes in the database",
 	Long:  `Edit a domain and its attributes.`,
-	Args:  cobra.MaximumNArgs(1), // an domain or all domaines
-	Run:   domainEdit,
+	Args:  cobra.ExactArgs(1), // edit just this domain
+	RunE:  domainEdit,
 }
 
 // linkage to top level commands
@@ -76,6 +83,12 @@ func init() {
 	addCmd.AddCommand(addDomain)
 	deleteCmd.AddCommand(deleteDomain)
 	editCmd.AddCommand(editDomain)
+	editDomain.Flags().IntVarP(&vUid, "uid", "u", 0,
+		"Virtual user id for this domain")
+	editDomain.Flags().IntVarP(&vGid, "gid", "g", 0,
+		"Virtual group id for this domain")
+	editDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
+		"Restriction class for this domain")
 }
 
 // domainImport the domains from inFile
@@ -89,8 +102,18 @@ func domainExport(cmd *cobra.Command, args []string) {
 }
 
 // domainAdd the domain and its class
-func domainAdd(cmd *cobra.Command, args []string) {
-	fmt.Println("add domain")
+func domainAdd(cmd *cobra.Command, args []string) error {
+	var class string = ""
+
+	if len(args) > 1 {
+		class = args[1]
+	}
+	if d, err := mdb.InsertDomain(args[0], class); err != nil {
+		return err
+	} else {
+		d.Release()
+		return nil
+	}
 }
 
 // domainDelete the domain in the first arg
@@ -99,6 +122,30 @@ func domainDelete(cmd *cobra.Command, args []string) {
 }
 
 // domainEdit the domain in the first arg
-func domainEdit(cmd *cobra.Command, args []string) {
-	fmt.Println("edit domain called")
+func domainEdit(cmd *cobra.Command, args []string) error {
+	var (
+		err error
+		d   *maildb.Domain
+	)
+
+	if d, err = mdb.GetDomain(args[0]); err != nil {
+		return err
+	}
+	if cmd.Flags().Changed("uid") {
+		if err = d.SetVUid(vUid); err != nil {
+			fmt.Printf("uid set, %s\n", err)
+		}
+	}
+	if cmd.Flags().Changed("gid") {
+		if err = d.SetVGid(vGid); err != nil {
+			fmt.Printf("gid set, %s\n", err)
+		}
+	}
+	if cmd.Flags().Changed("rclass") {
+		if err = d.SetRclass(rClass); err != nil {
+			fmt.Printf("rclass set, %s\n", err)
+		}
+	}
+	d.Release()
+	return nil
 }
