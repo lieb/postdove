@@ -124,32 +124,27 @@ func TestDomain(t *testing.T) {
 		}
 	}
 
-	// Set some of the fields
-	if err = mdb.SetVUid("foo", 53); err != nil {
-		t.Errorf("SetVUid foo, %s", err)
-	} else if d, err = mdb.LookupDomain("foo"); err != nil {
-		t.Errorf("Lookup foo after setuid, %s", err)
+	// Set some of the fields, first get the domain for transactions
+	if d, err = mdb.GetDomain("foo"); err != nil {
+		t.Errorf("Get foo: %s", err)
 	} else {
-		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=<NULL>, rclass=DEFAULT." {
-			t.Errorf("SetVUid did not set uid, %s", d.dump())
+		if err = d.SetVUid(53); err != nil {
+			t.Errorf("SetVUid foo, %s", err)
 		}
-	}
-	if err = mdb.SetVGid("foo", 42); err != nil {
-		t.Errorf("SetVGid foo, %s", err)
-	} else if d, err = mdb.LookupDomain("foo"); err != nil {
-		t.Errorf("Lookup foo after setgid, %s", err)
-	} else {
-		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=DEFAULT." {
-			t.Errorf("SetVUid did not set uid, %s", d.dump())
+		if err = d.SetVGid(42); err != nil {
+			t.Errorf("SetVGid foo, %s", err)
 		}
-	}
-	if err = mdb.SetRclass("foo", "spam"); err != nil {
-		t.Errorf("SetRclassid foo, %s", err)
-	} else if d, err = mdb.LookupDomain("foo"); err != nil {
-		t.Errorf("Lookup foo after rclass, %s", err)
-	} else {
-		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=spam." {
-			t.Errorf("SetVUid did not set uid, %s", d.dump())
+		if err = d.SetRclass("spam"); err != nil {
+			t.Errorf("SetRclassid foo, %s", err)
+		}
+		d.Release() // commit or rollback changes
+		// now check it
+		if d, err = mdb.LookupDomain("foo"); err != nil {
+			t.Errorf("Lookup foo after sets, %s", err)
+		} else {
+			if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=spam." {
+				t.Errorf("domain not expected after transactions, %s", d.dump())
+			}
 		}
 	}
 	// Lookup something not there
