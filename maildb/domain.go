@@ -169,8 +169,8 @@ func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
 	}
 }
 
-//InsertDomain
-// requires transaction. May need a non-tx version, i.e. insertDomainTx
+// InsertDomain and start a transaction which must be commited with Release()
+// returns a *Domain. If error, rollback the transaction.
 func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 	var (
 		dclass Class
@@ -198,6 +198,12 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 		return nil, ErrMdbBadClass
 	}
 
+	if mdb.tx != nil {
+		return nil, ErrMdbInTransaction
+	}
+	if err = mdb.begin(); err != nil {
+		return nil, err
+	}
 	if class == "" { // use the schema default
 		res, err = mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", name)
 	} else {
@@ -205,26 +211,26 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 	}
 	if err != nil {
 		if IsErrConstraintUnique(err) {
-			return nil, ErrMdbDupDomain
-		} else {
-			return nil, err
+			err = ErrMdbDupDomain
+		}
+	} else {
+		if dID, err := res.LastInsertId(); err == nil {
+			// Now query it to pick up the schema defaults
+			d := &Domain{
+				id:   dID,
+				name: name,
+			}
+			row := mdb.tx.QueryRow(
+				"SELECT class, transport, access, vuid, vgid, rclass FROM domain WHERE id = ?",
+				dID)
+			if err = row.Scan(&d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err == nil {
+				d.mdb = mdb
+				return d, nil
+			}
 		}
 	}
-	dID, err := res.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-	// Now query it to pick up the schema defaults
-	d := &Domain{
-		id:   dID,
-		name: name,
-	}
-	row := mdb.tx.QueryRow("SELECT class, transport, access, vuid, vgid, rclass FROM domain WHERE id = ?",
-		dID)
-	if err = row.Scan(&d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err != nil {
-		return nil, err
-	}
-	return d, nil
+	mdb.end(false)
+	return nil, err
 }
 
 // GetDomain
