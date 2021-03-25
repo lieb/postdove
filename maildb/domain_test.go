@@ -32,17 +32,6 @@ import (
 	_ "github.com/mattn/go-sqlite3" // do I really need this here?
 )
 
-// doInsertDomain
-func doInsertDomain(mdb *MailDB, name string, class string) (d *Domain, err error) {
-	if err = mdb.begin(); err != nil {
-		return
-	}
-	defer mdb.end(err == nil)
-
-	d, err = mdb.InsertDomain(name, class)
-	return
-}
-
 // TestDomain
 func TestDomain(t *testing.T) {
 	var (
@@ -64,7 +53,7 @@ func TestDomain(t *testing.T) {
 	defer mdb.Close()
 
 	// Try to insert a domain
-	d, err = doInsertDomain(mdb, "foo", "")
+	d, err = mdb.InsertDomain("foo", "")
 	if err != nil {
 		t.Errorf("Insert foo: %s", err)
 		return // no need to go further this early
@@ -87,24 +76,28 @@ func TestDomain(t *testing.T) {
 		} else if d.IsVmailbox() {
 			t.Errorf("IsVmailbox should be false")
 		}
+		d.Release()
 	}
 
 	// Try some bad args...
-	d, err = doInsertDomain(mdb, "", "")
+	d, err = mdb.InsertDomain("", "")
 	if err == nil {
+		d.Release() // do it anyway !?
 		t.Errorf("Insert \"\" should have failed")
 	} else if err != ErrMdbBadName {
 		t.Errorf("Insert of \"\": %s", err)
 	}
-	d, err = doInsertDomain(mdb, ";bogus", "")
+	d, err = mdb.InsertDomain(";bogus", "")
 	if err == nil {
+		d.Release()
 		t.Errorf("Insert \";bogus\" should have failed")
 	} else if err != ErrMdbBadName {
 		t.Errorf("Insert of \";bogus\": %s", err)
 	}
 
-	d, err = doInsertDomain(mdb, "baz", "jazz")
+	d, err = mdb.InsertDomain("baz", "jazz")
 	if err == nil {
+		d.Release()
 		t.Errorf("Insert \"jazz\" should have failed")
 	} else if err != ErrMdbBadClass {
 		t.Errorf("Insert of \"jazz\": %s", err)
@@ -139,10 +132,13 @@ func TestDomain(t *testing.T) {
 		}
 		d.Release() // commit or rollback changes
 		// now check it
-		if d, err = mdb.LookupDomain("foo"); err != nil {
+		if dn, err := mdb.LookupDomain("foo"); err != nil {
 			t.Errorf("Lookup foo after sets, %s", err)
 		} else {
-			if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=spam." {
+			if d.dump() != dn.dump() {
+				t.Errorf("Lookup to set mismatch: d=%s, dn=%s", d.dump(), dn.dump())
+			}
+			if dn.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=spam." {
 				t.Errorf("domain not expected after transactions, %s", d.dump())
 			}
 		}
