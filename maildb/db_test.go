@@ -280,6 +280,4 @@ func TestDBLoad(t *testing.T) {
 	if aCount != 0 || dCount != 0 {
 		t.Errorf("delete of bill@goof.com: expected 0 addresses, 0 domains, got %d, %d", aCount, dCount)
 	}
-
-	mdb.Close()
 }

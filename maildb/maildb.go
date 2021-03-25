@@ -180,6 +180,13 @@ func (mdb *MailDB) end(makeItSo bool) {
 }
 
 // Close
+// This must match a successful NewMailDB or it will panic
+// best practice is to defer a call here in the same function
+// that did the open
 func (mdb *MailDB) Close() {
+	if mdb.db == nil {
+		panic("mdb.Close called with database not open")
+	}
 	mdb.db.Close()
+	mdb.db = nil
 }
