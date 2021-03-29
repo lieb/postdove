@@ -370,6 +370,12 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("delete of a putz unexpected error, %s", err)
 	}
 
+	// try to remove a domain out from under an alias
+	if err = mdb.DeleteDomain("office"); err == nil {
+		t.Errorf("delete of office out from under alias should have failed")
+	} else if err != ErrMdbDomainBusy {
+		t.Errorf("delete of office: unexpected error, %s", err)
+	}
 	// now remove the whole alias of all that remain
 	if err = mdb.RemoveAlias("miller@office"); err != nil {
 		t.Errorf("Remove miller@office: %s", err)
