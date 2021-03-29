@@ -88,6 +88,14 @@ var editCmd = &cobra.Command{
 	Long:  `Edit an entry in the specified table.`,
 }
 
+// showCmd represents the show command
+var showCmd = &cobra.Command{
+	Use:   "show [table]",
+	Short: "Show the contents of a table entry",
+	Long: `Show the contents of a table or table entry in the database in a person
+readable format`,
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -141,4 +149,7 @@ func init() {
 
 	// Edit command
 	rootCmd.AddCommand(editCmd)
+
+	// Show command
+	rootCmd.AddCommand(showCmd)
 }

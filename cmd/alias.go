@@ -78,6 +78,16 @@ var editAlias = &cobra.Command{
 	Run:   aliasEdit,
 }
 
+// showAlias display an alias
+var showAlias = &cobra.Command{
+	Use:   "alias address",
+	Short: "Display the contents of an alias",
+	Long: `Display the contents of an alias and all its recipients
+to the standard output`,
+	Args: cobra.ExactArgs(1),
+	RunE: aliasShow,
+}
+
 // linkage to top level commands
 func init() {
 	importCmd.AddCommand(importAlias)
@@ -85,6 +95,7 @@ func init() {
 	addCmd.AddCommand(addAlias)
 	deleteCmd.AddCommand(deleteAlias)
 	editCmd.AddCommand(editAlias)
+	showCmd.AddCommand(showAlias)
 }
 
 // aliasImport the aliases in /etc/aliases format from inFile
@@ -110,4 +121,10 @@ func aliasDelete(cmd *cobra.Command, args []string) {
 // aliasEdit the address in the first arg
 func aliasEdit(cmd *cobra.Command, args []string) {
 	fmt.Println("edit alias called")
+}
+
+// aliasShow the address in the first arg
+func aliasShow(cmd *cobra.Command, args []string) error {
+	fmt.Println("show alias called for ", args[0])
+	return nil
 }

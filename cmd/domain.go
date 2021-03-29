@@ -29,7 +29,7 @@ var (
 	rClass string
 )
 
-// importDomain do import of an domaines file
+// importDomain do import of a domains file
 var importDomain = &cobra.Command{
 	Use:   "domain",
 	Short: "Import a file containing a domain name and its attributes, one per line",
@@ -38,7 +38,7 @@ var importDomain = &cobra.Command{
 	Run:   domainImport,
 }
 
-// exportDomain do export of an domaines file
+// exportDomain do export of a domains file
 var exportDomain = &cobra.Command{
 	Use:   "domain",
 	Short: "Export domains into file one per line",
@@ -47,7 +47,7 @@ var exportDomain = &cobra.Command{
 	Run:   domainExport,
 }
 
-// addDomain do add of an domaines file
+// addDomain do add of a domains file
 var addDomain = &cobra.Command{
 	Use:   "domain name class",
 	Short: "Add an domain into the database",
@@ -57,23 +57,33 @@ The class defines what the domain is used for, i.e. for virtual mailboxes or loc
 	RunE: domainAdd,
 }
 
-// deleteDomain do delete of an domaines file
+// deleteDomain do delete of a domains file
 var deleteDomain = &cobra.Command{
 	Use:   "domain ",
 	Short: "Delete an domain from the database.",
 	Long: `Delete an address domain from the database.
 All of the recipients pointed to by this name will be also deleted`,
 	Args: cobra.ExactArgs(1), // domain name
-	Run:  domainDelete,
+	RunE: domainDelete,
 }
 
-// editDomain do edit of an domaines file
+// editDomain do edit of a domains file
 var editDomain = &cobra.Command{
 	Use:   "domain name",
 	Short: "Edit the named domain and attributes in the database",
 	Long:  `Edit a domain and its attributes.`,
 	Args:  cobra.ExactArgs(1), // edit just this domain
 	RunE:  domainEdit,
+}
+
+// showDomain display domain contents
+var showDomain = &cobra.Command{
+	Use:   "domain name",
+	Short: "Display the contents of the named domain to the standard output",
+	Long: `Show the contents of the named domain to the standard output
+showing all its attributes`,
+	Args: cobra.ExactArgs(1),
+	RunE: domainShow,
 }
 
 // linkage to top level commands
@@ -89,6 +99,7 @@ func init() {
 		"Virtual group id for this domain")
 	editDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
 		"Restriction class for this domain")
+	showCmd.AddCommand(showDomain)
 }
 
 // domainImport the domains from inFile
@@ -117,8 +128,8 @@ func domainAdd(cmd *cobra.Command, args []string) error {
 }
 
 // domainDelete the domain in the first arg
-func domainDelete(cmd *cobra.Command, args []string) {
-	fmt.Println("delete domain called")
+func domainDelete(cmd *cobra.Command, args []string) error {
+	return mdb.DeleteDomain(args[0])
 }
 
 // domainEdit the domain in the first arg
@@ -147,5 +158,11 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 		}
 	}
 	d.Release()
+	return nil
+}
+
+// domainShow
+func domainShow(cmd *cobra.Command, args []string) error {
+	fmt.Println("Show domain ", args[0])
 	return nil
 }

@@ -72,6 +72,14 @@ var editMailbox = &cobra.Command{
 	Run:   mailboxEdit,
 }
 
+// showMailbox display the mailbox and its attributes
+var showMailbox = &cobra.Command{
+	Use:   "mailbox address",
+	Short: "Display the mailbox",
+	Long:  `Display the mailbox and its attributes to standard output`,
+	RunE:  mailboxShow,
+}
+
 // linkage to top level commands
 func init() {
 	importCmd.AddCommand(importMailbox)
@@ -79,6 +87,7 @@ func init() {
 	addCmd.AddCommand(addMailbox)
 	deleteCmd.AddCommand(deleteMailbox)
 	editCmd.AddCommand(editMailbox)
+	showCmd.AddCommand(showMailbox)
 }
 
 // mailboxImport the mailboxes from inFile
@@ -104,4 +113,10 @@ func mailboxDelete(cmd *cobra.Command, args []string) {
 // mailboxEdit the mailbox of the address in the first arg
 func mailboxEdit(cmd *cobra.Command, args []string) {
 	fmt.Println("edit mailbox called")
+}
+
+// mailboxShow
+func mailboxShow(cmd *cobra.Command, args []string) error {
+	fmt.Println("show mailbox ", args[0])
+	return nil
 }
