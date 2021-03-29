@@ -338,7 +338,9 @@ func (d *Domain) Release() {
 func (mdb *MailDB) DeleteDomain(name string) error {
 	res, err := mdb.db.Exec("DELETE FROM domain WHERE name = ?", name)
 	if err != nil {
-		if !IsErrConstraintForeignKey(err) {
+		if IsErrConstraintForeignKey(err) {
+			return ErrMdbDomainBusy
+		} else {
 			return err
 		}
 	} else {

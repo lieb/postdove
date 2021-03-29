@@ -44,6 +44,8 @@ var (
 	ErrMdbDomainNotFound    = errors.New("domain not found")
 	ErrMdbDupAddress        = errors.New("Address already exists")
 	ErrMdbDupDomain         = errors.New("Domain already exists")
+	ErrMdbAddressBusy       = errors.New("Address still in use")
+	ErrMdbDomainBusy        = errors.New("Domain still in use")
 	ErrMdbTransNotFound     = errors.New("transport not found")
 	ErrMdbDupTrans          = errors.New("transport already exists")
 	ErrMdbNotAlias          = errors.New("address is not an alias")
