@@ -142,6 +142,25 @@ func TestDomain(t *testing.T) {
 				t.Errorf("domain not expected after transactions, %s", d.dump())
 			}
 		}
+		if d.Class() != "internet" {
+			t.Errorf("Domain.Class(): expected \"internet\", got %s", d.Class())
+		}
+		if d.Transport() != "--" {
+			t.Errorf("Domain.Transport(): expected --, got %s", d.Transport())
+		}
+		if d.Access() != "--" {
+			t.Errorf("Domain.Access(): expected --, got %s", d.Access())
+		}
+		if d.Vuid() != "53" {
+			t.Errorf("Domain.Vuid(): expected --, got %s", d.Vuid())
+		}
+		if d.Vgid() != "42" {
+			t.Errorf("Domain.Vgid(): expected --, got %s", d.Vgid())
+		}
+		if d.Rclass() != "spam" {
+			t.Errorf("Domain.Rclass(): expected --, got %s", d.Rclass())
+		}
+
 	}
 	// Lookup something not there
 	d, err = mdb.LookupDomain("baz")
