@@ -61,13 +61,79 @@ var domainClass = []string{
 	vmailbox: "vmailbox",
 }
 
-// String
+// String just the name
 func (d *Domain) String() string {
 	var (
 		line strings.Builder
 	)
 
 	fmt.Fprintf(&line, "%s", d.name)
+	return line.String()
+}
+
+// Class
+func (d *Domain) Class() string {
+	var line strings.Builder
+
+	fmt.Fprintf(&line, "%s", domainClass[d.class])
+	return line.String()
+}
+
+// Transport
+// full transport stuff NYI
+func (d *Domain) Transport() string {
+	var line strings.Builder
+
+	if d.transport.Valid {
+		fmt.Fprintf(&line, "NYI(%d)", d.transport.Int64)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Access
+// full access stuff NYI
+func (d *Domain) Access() string {
+	var line strings.Builder
+
+	if d.access.Valid {
+		fmt.Fprintf(&line, "NYI(%d)", d.access.Int64)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Vuid
+func (d *Domain) Vuid() string {
+	var line strings.Builder
+
+	if d.vuid.Valid {
+		fmt.Fprintf(&line, "%d", d.vuid.Int64)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Vgid
+func (d *Domain) Vgid() string {
+	var line strings.Builder
+
+	if d.vgid.Valid {
+		fmt.Fprintf(&line, "%d", d.vgid.Int64)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Rclass
+func (d *Domain) Rclass() string {
+	var line strings.Builder
+
+	fmt.Fprintf(&line, "%s", d.rclass)
 	return line.String()
 }
 
