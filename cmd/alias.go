@@ -17,8 +17,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -100,31 +98,31 @@ func init() {
 
 // aliasImport the aliases in /etc/aliases format from inFile
 func aliasImport(cmd *cobra.Command, args []string) {
-	fmt.Println("import alias called infile", dbFile, inFile)
+	cmd.Println("import alias called infile", dbFile, inFile)
 }
 
 // aliasExport the aliases in /etc/aliases format to outFile
 func aliasExport(cmd *cobra.Command, args []string) {
-	fmt.Println("export alias called outfile", dbFile, outFile)
+	cmd.Println("export alias called outfile", dbFile, outFile)
 }
 
 // aliasAdd the alias and its recipients
 func aliasAdd(cmd *cobra.Command, args []string) {
-	fmt.Println("add alias")
+	cmd.Println("add alias")
 }
 
 // aliasDelete the address in the first arg
 func aliasDelete(cmd *cobra.Command, args []string) {
-	fmt.Println("delete alias called")
+	cmd.Println("delete alias called")
 }
 
 // aliasEdit the address in the first arg
 func aliasEdit(cmd *cobra.Command, args []string) {
-	fmt.Println("edit alias called")
+	cmd.Println("edit alias called")
 }
 
 // aliasShow the address in the first arg
 func aliasShow(cmd *cobra.Command, args []string) error {
-	fmt.Println("show alias called for ", args[0])
+	cmd.Println("show alias called for ", args[0])
 	return nil
 }

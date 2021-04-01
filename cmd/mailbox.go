@@ -17,8 +17,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -92,31 +90,31 @@ func init() {
 
 // mailboxImport the mailboxes from inFile
 func mailboxImport(cmd *cobra.Command, args []string) {
-	fmt.Println("import mailbox called infile", dbFile, inFile)
+	cmd.Println("import mailbox called infile", dbFile, inFile)
 }
 
 // mailboxExport the mailboxes to outFile
 func mailboxExport(cmd *cobra.Command, args []string) {
-	fmt.Println("export mailbox called outfile", dbFile, outFile)
+	cmd.Println("export mailbox called outfile", dbFile, outFile)
 }
 
 // mailboxAdd the mailbox and its address
 func mailboxAdd(cmd *cobra.Command, args []string) {
-	fmt.Println("add mailbox")
+	cmd.Println("add mailbox")
 }
 
 // mailboxDelete the mailbox and address in the first arg
 func mailboxDelete(cmd *cobra.Command, args []string) {
-	fmt.Println("delete mailbox called")
+	cmd.Println("delete mailbox called")
 }
 
 // mailboxEdit the mailbox of the address in the first arg
 func mailboxEdit(cmd *cobra.Command, args []string) {
-	fmt.Println("edit mailbox called")
+	cmd.Println("edit mailbox called")
 }
 
 // mailboxShow
 func mailboxShow(cmd *cobra.Command, args []string) error {
-	fmt.Println("show mailbox ", args[0])
+	cmd.Println("show mailbox ", args[0])
 	return nil
 }

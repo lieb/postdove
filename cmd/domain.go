@@ -17,8 +17,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
 )
@@ -104,12 +102,12 @@ func init() {
 
 // domainImport the domains from inFile
 func domainImport(cmd *cobra.Command, args []string) {
-	fmt.Println("import domain called infile", dbFile, inFile)
+	cmd.Println("import domain called infile", dbFile, inFile)
 }
 
 // domainExport the domains to outFile
 func domainExport(cmd *cobra.Command, args []string) {
-	fmt.Println("export domain called outfile", dbFile, outFile)
+	cmd.Println("export domain called outfile", dbFile, outFile)
 }
 
 // domainAdd the domain and its class
@@ -144,17 +142,17 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flags().Changed("uid") {
 		if err = d.SetVUid(vUid); err != nil {
-			fmt.Printf("uid set, %s\n", err)
+			cmd.Printf("uid set, %s\n", err)
 		}
 	}
 	if cmd.Flags().Changed("gid") {
 		if err = d.SetVGid(vGid); err != nil {
-			fmt.Printf("gid set, %s\n", err)
+			cmd.Printf("gid set, %s\n", err)
 		}
 	}
 	if cmd.Flags().Changed("rclass") {
 		if err = d.SetRclass(rClass); err != nil {
-			fmt.Printf("rclass set, %s\n", err)
+			cmd.Printf("rclass set, %s\n", err)
 		}
 	}
 	d.Release()
@@ -163,6 +161,6 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 
 // domainShow
 func domainShow(cmd *cobra.Command, args []string) error {
-	fmt.Println("Show domain ", args[0])
+	cmd.Println("Show domain ", args[0])
 	return nil
 }

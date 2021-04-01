@@ -17,12 +17,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
 // cmdTUI
 func cmdTUI(cmd *cobra.Command, args []string) {
-	fmt.Println("Use the TUI", dbFile)
+	cmd.PrintErrln("Use the TUI", dbFile)
 }

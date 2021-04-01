@@ -17,8 +17,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -86,25 +84,25 @@ func init() {
 
 // virtualImport the virtuales in /etc/virtuales format from inFile
 func virtualImport(cmd *cobra.Command, args []string) {
-	fmt.Println("import virtual called infile", dbFile, inFile)
+	cmd.Println("import virtual called infile", dbFile, inFile)
 }
 
 // virtualExport the virtuales in /etc/virtuales format to outFile
 func virtualExport(cmd *cobra.Command, args []string) {
-	fmt.Println("export virtual called outfile", dbFile, outFile)
+	cmd.Println("export virtual called outfile", dbFile, outFile)
 }
 
 // virtualAdd the virtual and its recipients
 func virtualAdd(cmd *cobra.Command, args []string) {
-	fmt.Println("add virtual")
+	cmd.Println("add virtual")
 }
 
 // virtualDelete the address in the first arg
 func virtualDelete(cmd *cobra.Command, args []string) {
-	fmt.Println("delete virtual called")
+	cmd.Println("delete virtual called")
 }
 
 // virtualEdit the address in the first arg
 func virtualEdit(cmd *cobra.Command, args []string) {
-	fmt.Println("edit virtual called")
+	cmd.Println("edit virtual called")
 }
