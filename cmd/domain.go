@@ -161,6 +161,17 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 
 // domainShow
 func domainShow(cmd *cobra.Command, args []string) error {
-	cmd.Println("Show domain ", args[0])
+	var (
+		err error
+		d   *maildb.Domain
+	)
+
+	if d, err = mdb.LookupDomain(args[0]); err != nil {
+		return err
+	}
+	cmd.Printf("Name:\t\t%s\nClass:\t\t%s\nTransport:\t%s\nAccess:\t\t%s\n",
+		d.String(), d.Class(), d.Transport(), d.Access())
+	cmd.Printf("UserID:\t\t%s\nGroup ID:\t%s\nRestrictions:\t%s\n",
+		d.Vuid(), d.Vgid(), d.Rclass())
 	return nil
 }
