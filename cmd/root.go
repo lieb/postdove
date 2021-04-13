@@ -67,6 +67,8 @@ var exportCmd = &cobra.Command{
 	Short: "Export the specified table to a file or stdout",
 	Long: `Export the specified table to a file using the expected format
 used by postfix and/or dovecot.`,
+	PersistentPreRunE:  exportRedirect,
+	PersistentPostRunE: exportClose,
 }
 
 // addCmd represents the add command
@@ -140,7 +142,7 @@ func init() {
 
 	// Export command and output file arg
 	rootCmd.AddCommand(exportCmd)
-	exportCmd.PersistentFlags().StringVarP(&outFile, "output", "o", "-",
+	exportCmd.PersistentFlags().StringVarP(&outFilePath, "output", "o", "-",
 		"Output file in postfix/dovecot format")
 
 	// Add command
