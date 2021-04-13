@@ -57,6 +57,8 @@ var importCmd = &cobra.Command{
 	Short: "Import a file to the database",
 	Long: `Import a file to the postfix/dovecot database. Most of these files
 use the same format required for postfix key/value pair databases`,
+	PersistentPreRunE:  importRedirect,
+	PersistentPostRunE: importClose,
 }
 
 // exportCmd represents the export command
@@ -133,7 +135,7 @@ func init() {
 
 	// Import command and input file arg
 	rootCmd.AddCommand(importCmd)
-	importCmd.PersistentFlags().StringVarP(&inFile, "input", "i", "-",
+	importCmd.PersistentFlags().StringVarP(&inFilePath, "input", "i", "-",
 		"Input file in postfix/dovecot format")
 
 	// Export command and output file arg
