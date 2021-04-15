@@ -42,7 +42,6 @@ const (
 // Domain
 type Domain struct {
 	mdb       *MailDB // only valid after successful GetDomain
-	errs      int     // count of errors in transaction
 	id        int64
 	name      string
 	class     Class
@@ -264,11 +263,8 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 		return nil, ErrMdbBadClass
 	}
 
-	if mdb.tx != nil {
-		return nil, ErrMdbInTransaction
-	}
-	if err = mdb.begin(); err != nil {
-		return nil, err
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
 	}
 	if class == "" { // use the schema default
 		res, err = mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", name)
@@ -295,7 +291,6 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 			}
 		}
 	}
-	mdb.end(false)
 	return nil, err
 }
 
@@ -310,24 +305,19 @@ func (mdb *MailDB) GetDomain(name string) (*Domain, error) {
 	d := &Domain{
 		name: name,
 	}
-	if mdb.tx != nil {
-		return nil, ErrMdbInTransaction
-	}
-	if err = mdb.begin(); err != nil {
-		return nil, err
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
 	}
 	row := mdb.tx.QueryRow(
 		"SELECT id, class, transport, access, vuid, vgid, rclass FROM domain WHERE name = ?",
 		name)
-	switch err := row.Scan(&d.id, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err {
+	switch err = row.Scan(&d.id, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err {
 	case sql.ErrNoRows:
-		mdb.end(false)
 		return nil, ErrMdbDomainNotFound
 	case nil:
 		d.mdb = mdb
 		return d, nil
 	default:
-		mdb.end(false)
 		return nil, err
 	}
 }
@@ -343,14 +333,14 @@ func (d *Domain) SetVUid(vuid int) error {
 	res, err := d.mdb.tx.Exec("UPDATE domain SET vuid = ? WHERE id = ?", vuid, d.id)
 	if err == nil {
 		c, err := res.RowsAffected()
-		if err == nil && c == 1 {
-			d.vuid = sql.NullInt64{Valid: true, Int64: int64(vuid)}
-			return nil
-		} else {
-			err = ErrMdbDomainNotFound
+		if err == nil {
+			if c == 1 {
+				d.vuid = sql.NullInt64{Valid: true, Int64: int64(vuid)}
+			} else {
+				err = ErrMdbDomainNotFound
+			}
 		}
 	}
-	d.errs++
 	return err
 }
 
@@ -361,14 +351,14 @@ func (d *Domain) SetVGid(vgid int) error {
 	res, err := d.mdb.tx.Exec("UPDATE domain SET vgid = ? WHERE id = ?", vgid, d.id)
 	if err == nil {
 		c, err := res.RowsAffected()
-		if err == nil && c == 1 {
-			d.vgid = sql.NullInt64{Valid: true, Int64: int64(vgid)}
-			return nil
-		} else {
-			err = ErrMdbDomainNotFound
+		if err == nil {
+			if c == 1 {
+				d.vgid = sql.NullInt64{Valid: true, Int64: int64(vgid)}
+			} else {
+				err = ErrMdbDomainNotFound
+			}
 		}
 	}
-	d.errs++
 	return err
 }
 
@@ -379,25 +369,15 @@ func (d *Domain) SetRclass(rclass string) error {
 	res, err := d.mdb.tx.Exec("UPDATE domain SET rclass = ? WHERE id = ?", rclass, d.id)
 	if err == nil {
 		c, err := res.RowsAffected()
-		if err == nil && c == 1 {
-			d.rclass = rclass
-			return nil
-		} else {
-			err = ErrMdbDomainNotFound
+		if err == nil {
+			if c == 1 {
+				d.rclass = rclass
+			} else {
+				err = ErrMdbDomainNotFound
+			}
 		}
 	}
-	d.errs++
-	return nil
-}
-
-// Release Domain
-// Commit and release the transaction acquired by GetDomain
-// Rollback if there were any intervening errors
-func (d *Domain) Release() {
-	if d.mdb != nil && d.mdb.tx != nil {
-		d.mdb.end(d.errs == 0)
-		d.mdb = nil
-	}
+	return err
 }
 
 // DeleteDomain
@@ -405,17 +385,15 @@ func (mdb *MailDB) DeleteDomain(name string) error {
 	res, err := mdb.db.Exec("DELETE FROM domain WHERE name = ?", name)
 	if err != nil {
 		if IsErrConstraintForeignKey(err) {
-			return ErrMdbDomainBusy
-		} else {
-			return err
+			err = ErrMdbDomainBusy
 		}
 	} else {
 		c, err := res.RowsAffected()
-		if err != nil {
-			return err
-		} else if c == 0 {
-			return ErrMdbDomainNotFound
+		if err == nil {
+			if c == 0 {
+				return ErrMdbDomainNotFound
+			}
 		}
 	}
-	return nil
+	return err
 }

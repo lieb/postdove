@@ -32,7 +32,7 @@ import (
 
 // Error return constants
 var (
-	ErrMdbInTransaction     = errors.New("Already in a transaction")
+	ErrMdbTransaction       = errors.New("Not in a transaction")
 	ErrMdbAddressEmpty      = errors.New("address is empty")
 	ErrMdbTargetEmpty       = errors.New("target is empty")
 	ErrMdbAddrIllegalChars  = errors.New("illegal chars in address")
@@ -154,6 +154,11 @@ func (mdb *MailDB) LoadSchema(schema string) error {
 	return nil
 }
 
+// Begin
+func (mdb *MailDB) Begin() error {
+	return mdb.begin()
+}
+
 // begin
 func (mdb *MailDB) begin() error {
 	if tx, err := mdb.db.Begin(); err != nil {
@@ -162,6 +167,11 @@ func (mdb *MailDB) begin() error {
 		mdb.tx = tx
 		return nil
 	}
+}
+
+// End
+func (mdb *MailDB) End(makeItSo bool) {
+	mdb.end(makeItSo)
 }
 
 // end

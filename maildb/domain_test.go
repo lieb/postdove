@@ -52,8 +52,20 @@ func TestDomain(t *testing.T) {
 	}
 	defer mdb.Close()
 
-	// Try to insert a domain
+	// Try to insert a domain without a transaction
 	d, err = mdb.InsertDomain("foo", "")
+	if err == nil {
+		t.Errorf("Insert with no transaction did not fail")
+		return
+	} else if err != ErrMdbTransaction {
+		t.Errorf("Expected error: Not in a transaction, got %s", err)
+		return
+	}
+
+	// Try to insert a domain
+	mdb.Begin()
+	d, err = mdb.InsertDomain("foo", "")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("Insert foo: %s", err)
 		return // no need to go further this early
@@ -76,28 +88,30 @@ func TestDomain(t *testing.T) {
 		} else if d.IsVmailbox() {
 			t.Errorf("IsVmailbox should be false")
 		}
-		d.Release()
 	}
 
 	// Try some bad args...
+	mdb.Begin()
 	d, err = mdb.InsertDomain("", "")
+	mdb.End(err == nil)
 	if err == nil {
-		d.Release() // do it anyway !?
 		t.Errorf("Insert \"\" should have failed")
 	} else if err != ErrMdbBadName {
 		t.Errorf("Insert of \"\": %s", err)
 	}
+	mdb.Begin()
 	d, err = mdb.InsertDomain(";bogus", "")
+	mdb.End(err == nil)
 	if err == nil {
-		d.Release()
 		t.Errorf("Insert \";bogus\" should have failed")
 	} else if err != ErrMdbBadName {
 		t.Errorf("Insert of \";bogus\": %s", err)
 	}
 
+	mdb.Begin()
 	d, err = mdb.InsertDomain("baz", "jazz")
+	mdb.End(err == nil)
 	if err == nil {
-		d.Release()
 		t.Errorf("Insert \"jazz\" should have failed")
 	} else if err != ErrMdbBadClass {
 		t.Errorf("Insert of \"jazz\": %s", err)
@@ -118,6 +132,7 @@ func TestDomain(t *testing.T) {
 	}
 
 	// Set some of the fields, first get the domain for transactions
+	mdb.Begin()
 	if d, err = mdb.GetDomain("foo"); err != nil {
 		t.Errorf("Get foo: %s", err)
 	} else {
@@ -130,7 +145,7 @@ func TestDomain(t *testing.T) {
 		if err = d.SetRclass("spam"); err != nil {
 			t.Errorf("SetRclassid foo, %s", err)
 		}
-		d.Release() // commit or rollback changes
+		mdb.End(err == nil)
 		// now check it
 		if dn, err := mdb.LookupDomain("foo"); err != nil {
 			t.Errorf("Lookup foo after sets, %s", err)

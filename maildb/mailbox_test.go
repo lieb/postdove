@@ -56,19 +56,21 @@ func TestMailbox(t *testing.T) {
 	// Test creating a new mailbox with all of the empties and defaults
 	// we first need a real domain so create a few because
 	// we need a domain before we can add mailboxes
-	d, err := mdb.InsertDomain("skywalker", "vmailbox")
+	mdb.Begin()
+	_, err = mdb.InsertDomain("skywalker", "vmailbox")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("Insert of skywalker failed, %s", err)
 		return
 	}
-	d.Release() // now because we aren't doing anything else to it
 
-	d, err = mdb.InsertDomain("nowhere", "relay") // fodder for busted mailboxes
+	mdb.Begin()
+	_, err = mdb.InsertDomain("nowhere", "relay") // fodder for busted mailboxes
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("Insert of nowhere failed, %s", err)
 		return
 	}
-	d.Release() // same here
 
 	// See if we can create a mailbox in nowhere
 	mb, err = mdb.NewVmailbox("lost@nowhere", "", "", "", "", "", "")

@@ -117,12 +117,10 @@ func domainAdd(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		class = args[1]
 	}
-	if d, err := mdb.InsertDomain(args[0], class); err != nil {
-		return err
-	} else {
-		d.Release()
-		return nil
-	}
+	mdb.Begin()
+	_, err := mdb.InsertDomain(args[0], class)
+	mdb.End(err == nil)
+	return err
 }
 
 // domainDelete the domain in the first arg
@@ -137,26 +135,19 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 		d   *maildb.Domain
 	)
 
-	if d, err = mdb.GetDomain(args[0]); err != nil {
-		return err
+	mdb.Begin()
+	d, err = mdb.GetDomain(args[0])
+	if err == nil && cmd.Flags().Changed("uid") {
+		err = d.SetVUid(vUid)
 	}
-	if cmd.Flags().Changed("uid") {
-		if err = d.SetVUid(vUid); err != nil {
-			cmd.Printf("uid set, %s\n", err)
-		}
+	if err == nil && cmd.Flags().Changed("gid") {
+		err = d.SetVGid(vGid)
 	}
-	if cmd.Flags().Changed("gid") {
-		if err = d.SetVGid(vGid); err != nil {
-			cmd.Printf("gid set, %s\n", err)
-		}
+	if err == nil && cmd.Flags().Changed("rclass") {
+		err = d.SetRclass(rClass)
 	}
-	if cmd.Flags().Changed("rclass") {
-		if err = d.SetRclass(rClass); err != nil {
-			cmd.Printf("rclass set, %s\n", err)
-		}
-	}
-	d.Release()
-	return nil
+	mdb.End(err == nil)
+	return err
 }
 
 // domainShow
