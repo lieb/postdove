@@ -17,6 +17,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
 )
@@ -33,7 +35,7 @@ var importDomain = &cobra.Command{
 	Short: "Import a file containing a domain name and its attributes, one per line",
 	Long:  `Import a domains file from the file named by the -i flag (default stdin '-').`,
 	Args:  cobra.NoArgs,
-	Run:   domainImport,
+	RunE:  domainImport,
 }
 
 // exportDomain do export of a domains file
@@ -41,8 +43,8 @@ var exportDomain = &cobra.Command{
 	Use:   "domain",
 	Short: "Export domains into file one per line",
 	Long:  `Export domains to the file named by the -o flag (default stdout '-').`,
-	Args:  cobra.NoArgs,
-	Run:   domainExport,
+	Args:  cobra.MaximumNArgs(1),
+	RunE:  domainExport,
 }
 
 // addDomain do add of a domains file
@@ -101,21 +103,65 @@ func init() {
 }
 
 // domainImport the domains from inFile
-func domainImport(cmd *cobra.Command, args []string) {
-	cmd.Println("import domain called infile", dbFile, inFile)
+func domainImport(cmd *cobra.Command, args []string) error {
+	var err error
+
+	mdb.Begin()
+	err = procImport(cmd, SIMPLE, procDomain)
+	mdb.End(err == nil)
+	return err
+}
+
+// procDomain
+// for a domain we have no trailing punctuation. If there is only
+// one token, it is the domain and we insert using the default class
+func procDomain(tokens []string) error {
+	var class string
+
+	switch len(tokens) {
+	case 1:
+		class = ""
+	case 2:
+		class = tokens[1]
+	default:
+		return fmt.Errorf("Imported domain should only have optional class")
+	}
+	_, err := mdb.InsertDomain(tokens[0], class)
+	return err
 }
 
 // domainExport the domains to outFile
-func domainExport(cmd *cobra.Command, args []string) {
-	cmd.Println("export domain called outfile", dbFile, outFile)
+func domainExport(cmd *cobra.Command, args []string) error {
+	var domain string
+
+	switch len(args) {
+	case 0: // all domains
+		domain = "*"
+	case 1:
+		domain = args[0] // domains by wildcard
+	default:
+		return fmt.Errorf("Only one domain can be specified")
+	}
+	dl, err := mdb.FindDomain(domain)
+	if err == nil {
+		for _, d := range dl {
+			cmd.Printf("%s\n", d.Export())
+		}
+	}
+	return err
 }
 
 // domainAdd the domain and its class
 func domainAdd(cmd *cobra.Command, args []string) error {
 	var class string = ""
 
-	if len(args) > 1 {
+	switch len(args) { // arg[0] is the domain to be added
+	case 1: // take DB field default
+		class = ""
+	case 2: // specify a class
 		class = args[1]
+	default:
+		return fmt.Errorf("Only one class field argument allowed")
 	}
 	mdb.Begin()
 	_, err := mdb.InsertDomain(args[0], class)

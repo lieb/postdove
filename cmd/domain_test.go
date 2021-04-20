@@ -83,7 +83,22 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("show of somewhere.org in good DB: did not expect error output, got %s", errout)
 	}
 
-	// Now a "virtual" domain (for mailboxes)
+	// try to add home.net with too many args
+	args = []string{"-d", dbfile, "add", "domain", "home.net", "virtual", "more_bits"} // using default class
+	out, errout, err = doTest(rootCmd, "", args)
+	if err == nil {
+		t.Errorf("Bad add of home.net: Should have failed")
+	} else if !strings.Contains(err.Error(), "Only one class field") {
+		t.Errorf("Bad add of home.net: Unexpected error %s", err)
+	}
+	if out == "" {
+		t.Errorf("Bad add home.net: Expected output, got nothing")
+	}
+	if errout == "" {
+		t.Errorf("Bdd add home.net: Expected error output, got nothing")
+	}
+
+	// Now do it with correct args a "virtual" domain (for mailboxes)
 	args = []string{"-d", dbfile, "add", "domain", "home.net", "virtual"} // using default class
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
@@ -173,4 +188,102 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Show of somewhere.org: Expected error output, got %s", errout)
 	}
 
+	// now get rid of home.net leaving just the default base (localhost, localhost.localdomain)
+	args = []string{"-d", dbfile, "delete", "domain", "home.net"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Delete home.net: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Delete home.net: Expected no output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Delete home.net: Expected no error output, got %s", errout)
+	}
+	// Now see if it is still there
+	args = []string{"-d", dbfile, "show", "domain", "home.net"} // now look it up
+	out, errout, err = doTest(rootCmd, "", args)
+	if err == nil {
+		t.Errorf("Show home.net: should have failed")
+	} else if err != maildb.ErrMdbDomainNotFound {
+		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
+	}
+	if out == "" {
+		t.Errorf("Show of home.net: Expected formatted help output, got nothing")
+	}
+	if !strings.Contains(errout, "domain not found") {
+		t.Errorf("Show of home.net: Expected error output, got %s", errout)
+	}
+
+	// import some domains first from stdin
+	args = []string{"-d", dbfile, "import", "domain"}
+	inputStr := `
+# Just one to test stdin
+bill.org local
+`
+	out, errout, err = doTest(rootCmd, inputStr, args)
+	if err != nil {
+		t.Errorf("Import of bill.org: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Import of bill.org: Expected no output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Import of bill.org: Expected no error output, got %s", errout)
+	}
+	// and now a file
+	args = []string{"-d", dbfile, "import", "domain", "-i", "./test_domains.txt"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Import of bill.org: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Import of bill.org: Expected no output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Import of bill.org: Expected no error output, got %s", errout)
+	}
+
+	// export list to date...
+	exportList := "bill.org local\ndish.net relay\nfoo internet\nlocalhost local\nlocalhost.localdomain local\nrun.com virtual\nzip.com internet\n"
+	// now check the contents.
+	args = []string{"-d", dbfile, "export", "domain"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Export domains: Unexpected error, %s", err)
+	}
+	if out != exportList {
+		t.Errorf("Export domains: Expected export list[%d](%s), got [%d](%s)",
+			len(exportList), exportList, len(out), out)
+	}
+	if errout != "" {
+		t.Errorf("Export domains: Expected no error output, got %s", errout)
+	}
+	// now check using wildcard "*"
+	args = []string{"-d", dbfile, "export", "domain", "*"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Export * domains: Unexpected error, %s", err)
+	}
+	if out != exportList {
+		t.Errorf("Export * domains: Expected export list[%d](%s), got [%d](%s)",
+			len(exportList), exportList, len(out), out)
+	}
+	if errout != "" {
+		t.Errorf("Export * domains: Expected no error output, got %s", errout)
+	}
+	// now check just *.com
+	exportList = "run.com virtual\nzip.com internet\n"
+	args = []string{"-d", dbfile, "export", "domain", "*.com"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Export *.com domains: Unexpected error, %s", err)
+	}
+	if out != exportList {
+		t.Errorf("Export *.com domains: Expected export list[%d](%s), got [%d](%s)",
+			len(exportList), exportList, len(out), out)
+	}
+	if errout != "" {
+		t.Errorf("Export *.com domains: Expected no error output, got %s", errout)
+	}
 }

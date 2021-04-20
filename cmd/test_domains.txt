@@ -1,0 +1,6 @@
+# domains for domain import testing
+
+foo # takes the default class
+zip.com internet
+dish.net relay
+run.com virtual
