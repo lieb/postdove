@@ -70,6 +70,14 @@ func (d *Domain) String() string {
 	return line.String()
 }
 
+// Export is export/import file format
+func (d *Domain) Export() string {
+	var line strings.Builder
+
+	fmt.Fprintf(&line, "%s %s", d.name, domainClass[d.class])
+	return line.String()
+}
+
 // Class
 func (d *Domain) Class() string {
 	var line strings.Builder
@@ -228,8 +236,56 @@ func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
 	case sql.ErrNoRows:
 		return nil, ErrMdbDomainNotFound
 	case nil:
+		d.mdb = mdb
 		return d, nil
 	default:
+		return nil, err
+	}
+}
+
+// FindDomain
+// LookupDomain but with wildcards
+// '*' - find all domains
+// '*.somedomain' - find all subdomains of somedomain
+// '*.*' - find all domains with subdomains
+func (mdb *MailDB) FindDomain(name string) ([]*Domain, error) {
+	var (
+		err       error
+		q         string
+		d         *Domain
+		dl        []*Domain
+		domainCnt int
+	)
+	if name == "*" {
+		q = `
+SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain ORDER BY NAME`
+	} else {
+		name = strings.ReplaceAll(name, "*", "%")
+		q = `
+SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE name LIKE ? ORDER BY name`
+	}
+	rows, err := mdb.db.Query(q, name)
+	for rows.Next() {
+		d = &Domain{}
+		if err = rows.Scan(&d.id, &d.name, &d.class, &d.transport,
+			&d.access, &d.vuid, &d.vgid, &d.rclass); err != nil {
+			break
+		}
+		d.mdb = mdb
+		dl = append(dl, d)
+		domainCnt++
+	}
+	if e := rows.Close(); e != nil {
+		if err == nil {
+			err = e
+		}
+	}
+	if domainCnt == 0 {
+		err = ErrMdbDomainNotFound
+	}
+	if err == nil {
+		return dl, nil
+	} else {
 		return nil, err
 	}
 }
@@ -243,7 +299,8 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 		err    error
 	)
 
-	if name == "" || strings.ContainsAny(name, "\n\r\t\f{}()[];\"") {
+	if name == "" || strings.ContainsAny(name, "\n\r\t\f{}()[];\"") ||
+		strings.Contains(name, "..") { // '..' means an empty sub-domain. not allowed
 		return nil, ErrMdbBadName
 	}
 	switch strings.ToLower(class) {

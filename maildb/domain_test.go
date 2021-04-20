@@ -134,6 +134,7 @@ func TestDomain(t *testing.T) {
 	// Set some of the fields, first get the domain for transactions
 	mdb.Begin()
 	if d, err = mdb.GetDomain("foo"); err != nil {
+		mdb.End(false)
 		t.Errorf("Get foo: %s", err)
 	} else {
 		if err = d.SetVUid(53); err != nil {
@@ -183,6 +184,66 @@ func TestDomain(t *testing.T) {
 		t.Errorf("Lookup baz should have failed: got %s", d.dump())
 	} else if err != ErrMdbDomainNotFound {
 		t.Errorf("Lookup baz: %s", err)
+	}
+
+	// Add some more FQDN domains
+	domainList := []string{
+		"buz.com",
+		"buz.org",
+		"buz.net",
+		"bar.com",
+		"bar.org",
+		"bar.net",
+		"zip.bar.net",
+		"tie.bar.net",
+	}
+	dlists := map[string][]string{
+		"*": []string{
+			"bar.com",
+			"bar.net",
+			"bar.org",
+			"buz.com",
+			"buz.net",
+			"buz.org",
+			"foo",
+			"tie.bar.net",
+			"zip.bar.net"},
+		"*.org": []string{
+			"bar.org",
+			"buz.org"},
+		"*.bar.*": []string{
+			"tie.bar.net",
+			"zip.bar.net"},
+		"*bar*": []string{
+			"bar.com",
+			"bar.net",
+			"bar.org",
+			"tie.bar.net",
+			"zip.bar.net"},
+	}
+	mdb.Begin()
+	for _, dom := range domainList {
+		if d, err = mdb.InsertDomain(dom, ""); err != nil {
+			t.Errorf("Insert domains: unexpected error, %s", err)
+			break
+		}
+	}
+	mdb.End(err == nil)
+	if err == nil { // only check if inserts passed
+		for q, l := range dlists {
+			dl, err := mdb.FindDomain(q)
+			if err != nil {
+				t.Errorf("Find domain \"%s\": Unexpected error, %s", q, err)
+			} else if len(dl) != len(l) {
+				t.Errorf("Find domain \"%s\": Should have found %d, found %d", q, len(l), len(dl))
+			} else {
+				for i, d := range dl {
+					if d.name != l[i] {
+						t.Errorf("Domain list for \"%s\", expected (%s), got (%s)", q, l[i], d.name)
+					}
+				}
+			}
+		}
 	}
 
 	// Delete stuff
