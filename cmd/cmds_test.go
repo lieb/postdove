@@ -30,13 +30,15 @@ import (
 )
 
 // doTest
-func doTest(cmd *cobra.Command, args []string) (string, string, error) {
+func doTest(cmd *cobra.Command, stdIn string, args []string) (string, string, error) {
 	var (
 		err error
 	)
 
+	inbuf := bytes.NewBufferString(stdIn)
 	outbuf := bytes.NewBufferString("")
 	errbuf := bytes.NewBufferString("")
+	cmd.SetIn(inbuf)
 	cmd.SetOut(outbuf)
 	cmd.SetErr(errbuf)
 	cmd.SetArgs(args)
@@ -67,7 +69,7 @@ func Test_Cmds(t *testing.T) {
 
 	// first the TUI (no args at all)
 	args = []string{"foo", "-x"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Bogus command foo should have failed")
 	} else if err.Error() != "unknown command \"foo\" for \"postdove\"" {
@@ -87,7 +89,7 @@ func Test_Cmds(t *testing.T) {
 
 	// Test create with no flags/args. Assumes test host does not have a dovecot installation
 	args = []string{"create"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with no flags should have failed")
 	} else if err.Error() != "LoadSchema: ReadFile, open /etc/dovecot/private/dovecot.schema: no such file or directory" {
@@ -102,7 +104,7 @@ func Test_Cmds(t *testing.T) {
 
 	// Create with unwriteable DB but good schema
 	args = []string{"create", "-s", "../schema.sql"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with bogus schema should have failed")
 	} else if !strings.Contains(err.Error(), "unable to open database file: no such file or directory") {
@@ -117,7 +119,7 @@ func Test_Cmds(t *testing.T) {
 
 	// Create with usable DB but bogus schema
 	args = []string{"create", "-d", dbfile, "-s", "bogus.schema"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with bogus schema should have failed")
 	} else if !strings.Contains(err.Error(), "open bogus.schema: no such file or directory") {
@@ -132,7 +134,7 @@ func Test_Cmds(t *testing.T) {
 
 	// Now create a good database
 	args = []string{"create", "-d", dbfile, "-s", "../schema.sql"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create good DB: Unexpected error, %s", err)
 	}
@@ -145,7 +147,7 @@ func Test_Cmds(t *testing.T) {
 
 	// Domain testing. Check to see if the pre-loaded domains are there
 	args = []string{"-d", dbfile, "show", "domain", "localhost"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Show of localhost in good DB: Unexpected error, %s", err)
 	}
@@ -157,7 +159,7 @@ func Test_Cmds(t *testing.T) {
 	}
 
 	args = []string{"-d", dbfile, "show", "domain", "localhost.localdomain"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Show of localhost.localdomain in good DB: Unexpected error, %s", err)
 	}
@@ -170,7 +172,7 @@ func Test_Cmds(t *testing.T) {
 
 	// Show a bogus domain
 	args = []string{"-d", dbfile, "show", "domain", "lost.mars"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Show of lost.mars should have failed")
 	} else if err.Error() != "domain not found" {

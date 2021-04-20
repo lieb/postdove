@@ -42,13 +42,13 @@ func Test_Domain(t *testing.T) {
 	fmt.Println("Test_Domain")
 
 	// Make a database and test it
-	dir, err = ioutil.TempDir("", "TestCmds-*")
+	dir, err = ioutil.TempDir("", "TestDomain-*")
 	defer os.RemoveAll(dir)
 	dbfile = filepath.Join(dir, "test.db")
 
 	// Now create a good database
 	args = []string{"create", "-d", dbfile, "-s", "../schema.sql"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create DB: Unexpected error, %s", err)
 	}
@@ -61,7 +61,7 @@ func Test_Domain(t *testing.T) {
 
 	// Add some domains, first with just defaults
 	args = []string{"-d", dbfile, "add", "domain", "somewhere.org"} // using default class
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Add somewhere.org: Unexpected error, %s", err)
 	}
@@ -72,7 +72,7 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Add somewhere.org: did not expect error output, got %s", errout)
 	}
 	args = []string{"-d", dbfile, "show", "domain", "somewhere.org"} // now look it up
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Show of somewhere.org in good DB: Unexpected error, %s", err)
 	}
@@ -85,7 +85,7 @@ func Test_Domain(t *testing.T) {
 
 	// Now a "virtual" domain (for mailboxes)
 	args = []string{"-d", dbfile, "add", "domain", "home.net", "virtual"} // using default class
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Add home.net: Unexpected error, %s", err)
 	}
@@ -96,7 +96,7 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Add home.net: did not expect error output, got %s", errout)
 	}
 	args = []string{"-d", dbfile, "show", "domain", "home.net"} // now look it up
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
 	}
@@ -109,7 +109,7 @@ func Test_Domain(t *testing.T) {
 
 	// Now edit it
 	args = []string{"-d", dbfile, "edit", "domain", "home.net", "--uid", "43", "--gid", "88", "--rclass", "STALL"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Edit home.net: Unexpected error, %s", err)
 	}
@@ -120,7 +120,7 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Edit home.net: did not expect error output, got %s", errout)
 	}
 	args = []string{"-d", dbfile, "show", "domain", "home.net"} // now look it up
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
 	}
@@ -133,7 +133,7 @@ func Test_Domain(t *testing.T) {
 
 	// delete a domain and check, starting with a non-existent
 	args = []string{"-d", dbfile, "delete", "domain", "nowhere.org"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Delete nowhere.org: should have failed")
 	} else if err != maildb.ErrMdbDomainNotFound {
@@ -147,20 +147,20 @@ func Test_Domain(t *testing.T) {
 	}
 
 	args = []string{"-d", dbfile, "delete", "domain", "somewhere.org"}
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
-		t.Errorf("Delete nowhere.org: Unexpected error, %s", err)
+		t.Errorf("Delete somewhere.org: Unexpected error, %s", err)
 	}
 	if out != "" {
-		t.Errorf("Delete nowhere.org: Expected no output, got %s", out)
+		t.Errorf("Delete somewhere.org: Expected no output, got %s", out)
 	}
 	if errout != "" {
-		t.Errorf("Delete nowhere.org: Expected no error output, got %s", errout)
+		t.Errorf("Delete somewhere.org: Expected no error output, got %s", errout)
 	}
 
 	// Now see if it is still there
 	args = []string{"-d", dbfile, "show", "domain", "somewhere.org"} // now look it up
-	out, errout, err = doTest(rootCmd, args)
+	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Show somewhere.org: should have failed")
 	} else if err != maildb.ErrMdbDomainNotFound {
