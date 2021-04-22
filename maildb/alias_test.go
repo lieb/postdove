@@ -279,8 +279,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("lookup *: %s", err)
 	}
 	res = []string{
-		"rebar: | cat > /dev/null, /tmp/rubbish",
 		"postfix: root, daemon@server, postmaster@usps.gov",
+		"rebar: | cat > /dev/null, /tmp/rubbish",
 	}
 	if len(al_list) != 2 {
 		t.Errorf("LookupAlias: * should be 2 aliases, got %d", len(al_list))
