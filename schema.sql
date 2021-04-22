@@ -63,6 +63,27 @@ CREATE TABLE "Address" (
        UNIQUE (localpart, domain)
        );
 
+-- Create triggers to enforce unique on domain column nulls
+-- This is a ambiguity in the SQL92 spec that (most) everyone handles by making unique
+-- with null columns break. So we explicitly check. For safety we trigger both INSERT
+-- and UPDATE although there is no application of updating a domain.
+DROP TRIGGER IF EXISTS addr_insert_null_check;
+CREATE TRIGGER addr_insert_null_check BEFORE INSERT ON Address
+ WHEN NEW.domain IS NULL
+   BEGIN
+     SELECT CASE WHEN (
+       (SELECT 1 FROM Address WHERE localpart IS NEW.localpart AND domain IS NULL)
+       NOTNULL) THEN RAISE(FAIL, "Duplicate insert with NULL") END; END;
+
+DROP TRIGGER IF EXISTS addr_update_null_check;
+CREATE TRIGGER addr_update_null_check BEFORE UPDATE ON Address
+ WHEN NEW.domain IS NULL
+   BEGIN
+     SELECT CASE WHEN (
+       (SELECT 1 FROM Address WHERE localpart is NEW.localpart AND domain IS NULL)
+       NOTNULL) THEN RAISE(FAIL, "Duplicate update with NULL")
+     END;  END;
+
 -- create a trigger to delete the domain when addr refs are 0 meaning this is the only
 -- one pointing to it and domain.class != vmailbox
 DROP TRIGGER  IF EXISTS after_addr_del;
