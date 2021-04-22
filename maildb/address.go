@@ -29,10 +29,10 @@ import (
 // DB query/insert helpers
 
 type Address struct {
+	mdb       *MailDB
 	id        int64
+	d         *Domain
 	localpart string
-	dname     string
-	domain    sql.NullInt64
 	transport sql.NullInt64
 	rclass    sql.NullString
 	access    sql.NullInt64
@@ -41,7 +41,7 @@ type Address struct {
 // IsLocal
 // a "local" address has no domain (address.domain IS NULL)
 func (a *Address) IsLocal() bool {
-	if !a.domain.Valid {
+	if a.d == nil {
 		return true
 	} else {
 		return false
@@ -53,8 +53,8 @@ func (a *Address) String() string {
 		line strings.Builder
 	)
 	fmt.Fprintf(&line, "%s", a.localpart)
-	if a.domain.Valid {
-		fmt.Fprintf(&line, "@%s", a.dname)
+	if a.d != nil {
+		fmt.Fprintf(&line, "@%s", a.d.String())
 	}
 	return line.String()
 }
@@ -65,8 +65,8 @@ func (a *Address) dump() string {
 		line strings.Builder
 	)
 	fmt.Fprintf(&line, "id:%d, localpart: %s, ", a.id, a.localpart)
-	if a.domain.Valid {
-		fmt.Fprintf(&line, "domain id: %d, dname: %s, ", a.domain.Int64, a.dname)
+	if a.d != nil {
+		fmt.Fprintf(&line, "domain id: %d, dname: %s, ", a.d.Id(), a.d.String())
 	} else {
 		fmt.Fprintf(&line, "domain id: <NULL>, dname: <empty>, ")
 	}
@@ -97,26 +97,40 @@ func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
 		err error
 	)
 
-	if ap.domain == "" { // An /etc/aliases entry
+	addr := &Address{
+		mdb: mdb,
+	}
+	d := &Domain{
+		mdb: mdb,
+	}
+	if ap.domain == "" { // A "local" address
 		qa := `
-SELECT id, localpart, domain, transport, rclass, access, "" FROM address
+SELECT id, localpart, transport, rclass, access FROM address
  WHERE localpart = ? AND domain IS NULL
 `
 		row = mdb.db.QueryRow(qa, ap.lpart)
-	} else { // A virtual alias entry
+		err = row.Scan(
+			&addr.id, &addr.localpart, &addr.transport, &addr.rclass, &addr.access)
+	} else { // A full RFC822 address
 		qa := `
-SELECT a.id, a.localpart, a.domain, a.transport, a.rclass, a.access, d.name
+SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
+       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
  FROM address AS a, domain AS d
  WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
 `
 		row = mdb.db.QueryRow(qa, ap.lpart, ap.domain)
+		err = row.Scan(
+			&addr.id, &addr.localpart, &addr.transport, &addr.rclass, &addr.access,
+			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
 	}
-	addr := &Address{}
-	switch err = row.Scan(&addr.id, &addr.localpart, &addr.domain,
-		&addr.transport, &addr.rclass, &addr.access, &addr.dname); err {
+	switch err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
+		addr.mdb = mdb
+		if ap.domain != "" {
+			addr.d = d
+		}
 		return addr, nil
 	default:
 		return nil, err
@@ -126,19 +140,22 @@ SELECT a.id, a.localpart, a.domain, a.transport, a.rclass, a.access, d.name
 // lookupAddressByID
 func (mdb *MailDB) lookupAddressByID(addrID int64) (*Address, error) {
 	var (
-		row   *sql.Row
-		err   error
-		addr  *Address
-		dname string
+		row    *sql.Row
+		err    error
+		addr   *Address
+		domain sql.NullInt64
 	)
 
 	qa := `
-SELECT id, localpart, domain, transport, rclass, access
+SELECT localpart, domain, transport, rclass, access
 FROM address WHERE id IS ?
 `
-	addr = &Address{}
+	addr = &Address{
+		mdb: mdb,
+		id:  addrID,
+	}
 	row = mdb.db.QueryRow(qa, addrID)
-	switch err = row.Scan(&addr.id, &addr.localpart, &addr.domain,
+	switch err = row.Scan(&addr.localpart, &domain,
 		&addr.transport, &addr.rclass, &addr.access); err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
@@ -147,10 +164,10 @@ FROM address WHERE id IS ?
 	default:
 		return nil, err
 	}
-	if addr.domain.Valid {
-		row = mdb.db.QueryRow("SELECT name FROM domain WHERE id IS ?", addr.domain)
-		if err = row.Scan(&dname); err == nil {
-			addr.dname = dname
+	if domain.Valid {
+		d, err := mdb.LookupDomainByID(domain.Int64)
+		if err == nil {
+			addr.d = d
 		} else {
 			return nil, err
 		}
@@ -158,71 +175,156 @@ FROM address WHERE id IS ?
 	return addr, nil
 }
 
+// FindAddress
+func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
+	var (
+		err        error
+		ap         *AddressParts
+		q          string
+		rows       *sql.Rows
+		al         []*Address
+		dl         []*Domain
+		addressCnt int
+	)
+
+	if ap, err = DecodeRFC822(address); err != nil {
+		return nil, err
+	}
+	q = "SELECT id, localpart, transport, rclass, access FROM address"
+	if ap.domain == "" { // if "*", start with locals
+		qa := q + " WHERE domain IS NULL"
+		if ap.lpart == "*" {
+			qa += " ORDER BY localpart"
+			rows, err = mdb.db.Query(qa)
+		} else {
+			lp := strings.ReplaceAll(ap.lpart, "*", "%")
+			qa += " AND localpart LIKE ? ORDER BY localpart"
+			rows, err = mdb.db.Query(qa, lp)
+		}
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			a := &Address{
+				mdb: mdb,
+			}
+			err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+			if err != nil {
+				break
+			}
+			al = append(al, a)
+			addressCnt++
+		}
+		if e := rows.Close(); e != nil {
+			if err == nil {
+				err = e
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	/*	if address == "*" {
+			ap.domain = "*" // make it all domains too
+		}
+	*/if ap.domain != "" {
+		if dl, err = mdb.FindDomain(ap.domain); err != nil {
+			return nil, err
+		}
+		for _, d := range dl {
+			if ap.lpart == "*" {
+				qd := q + " WHERE domain IS ? ORDER BY localpart"
+				rows, err = mdb.db.Query(qd, d.Id())
+			} else {
+				lp := strings.ReplaceAll(ap.lpart, "*", "%")
+				qd := q + " WHERE domain IS ? AND localpart LIKE ? ORDER BY localpart"
+				rows, err = mdb.db.Query(qd, d.Id(), lp)
+			}
+			if err == nil {
+				for rows.Next() {
+					a := &Address{
+						mdb: mdb,
+					}
+					err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+					if err != nil {
+						break
+					}
+					a.d = d
+					al = append(al, a)
+					addressCnt++
+				}
+				if e := rows.Close(); e != nil {
+					if err == nil {
+						err = e
+					}
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+	if addressCnt == 0 {
+		err = ErrMdbAddressNotFound
+	}
+	return al, err
+}
+
 // insertAddress
 // Insert an address MUST be under a transaction
 func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 	var (
-		domID  sql.NullInt64
-		addr   *Address
-		addrID int64
-		row    *sql.Row
-		err    error
+		addr *Address
+		d    *Domain
+		row  *sql.Row
+		res  sql.Result
+		err  error
 	)
 
-	if ap.domain == "" { // An /etc/aliases entry
-		domID = sql.NullInt64{
-			Valid: false,
-			Int64: 0,
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
+	}
+	if ap.domain == "" { // A "local user" entry
+		res, err = mdb.tx.Exec("INSERT INTO address (localpart) VALUES (?)", ap.lpart)
+		if err != nil {
+			if strings.Contains(err.Error(), "Duplicate insert") {
+				err = ErrMdbDupAddress // caught by trigger, not constraint
+			}
 		}
 	} else { // A Virtual alias entry
-		row = mdb.tx.QueryRow("SELECT id FROM domain WHERE name = ?", ap.domain)
-		switch err = row.Scan(&domID); err {
-		case sql.ErrNoRows: // Make a new virtual domain, assume its class is the default...
-			res, err := mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", ap.domain)
+		if d, err = mdb.GetDomain(ap.domain); err != nil {
+			if err == ErrMdbDomainNotFound {
+				d, err = mdb.InsertDomain(ap.domain, "")
+			}
+		}
+		if err == nil {
+			res, err = mdb.tx.Exec("INSERT INTO address (localpart, domain) VALUES (?, ?)",
+				ap.lpart, d.Id())
 			if err != nil {
-				return nil, err
-			}
-			if id, err := res.LastInsertId(); err == nil {
-				domID = sql.NullInt64{
-					Valid: true,
-					Int64: id,
+				if IsErrConstraintUnique(err) {
+					err = ErrMdbDupAddress
 				}
-			} else {
-				return nil, err
 			}
-		case nil: // existing domain
-			break
-		default:
-			return nil, err
+		} else {
+			return nil, err // error with domain
 		}
 	}
-	// FIXME: just insert and detect dup IsErrConstraintUnique
-	row = mdb.tx.QueryRow("SELECT id FROM address WHERE localpart = ? AND domain IS ?",
-		ap.lpart, domID)
-	switch err = row.Scan(&addrID); err {
-	case sql.ErrNoRows: // Make a new alias
-		res, err := mdb.tx.Exec("INSERT INTO address (localpart, domain) VALUES (?, ?)",
-			ap.lpart, domID)
-		if err != nil {
-			return nil, err
+	if err == nil {
+		if aid, err := res.LastInsertId(); err == nil {
+			addr = &Address{
+				mdb:       mdb,
+				id:        aid,
+				localpart: ap.lpart,
+			}
+			row = mdb.tx.QueryRow(
+				"SELECT transport, rclass, access FROM address WHERE id IS ?", aid)
+			if err = row.Scan(&addr.transport, &addr.rclass, &addr.access); err == nil {
+				addr.d = d
+				return addr, nil
+			}
 		}
-		if addrID, err = res.LastInsertId(); err != nil {
-			return nil, err
-		}
-	case nil: // already exists.
-		return nil, ErrMdbDupAddress
-	default:
-		return nil, err
 	}
-	addr = &Address{ // the rest of Address is not init'd. DB may have other defaults
-		id:        addrID,
-		localpart: ap.lpart,
-		domain:    domID,
-	}
-	if domID.Valid {
-		addr.dname = ap.domain
-	}
-	return addr, nil
+	return nil, err
 }
 
 // deleteAddress

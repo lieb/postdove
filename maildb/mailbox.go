@@ -98,65 +98,31 @@ func (mb *VMailbox) IsEnabled() bool {
 // * error. No local system users (for now)
 func (mdb *MailDB) LookupVMailbox(mbox string) ([]*VMailbox, error) {
 	var (
-		ap      *AddressParts
 		mb_list []*VMailbox
-		rows    *sql.Rows
+		a_list  []*Address
 		err     error
+		rowCnt  int
 	)
 
-	if ap, err = DecodeRFC822(mbox); err != nil {
+	if a_list, err = mdb.FindAddress(mbox); err != nil {
 		return nil, err
 	}
-	q := `SELECT a.id, a.localpart, a.domain, a.transport, a.rclass, a.access, d.name `
-	if ap.lpart == "*" || ap.domain == "*" { // wildcard
-		rowCnt := 0
-		if ap.lpart == "*" && ap.domain == "*" { // all mailboxes
-			q += `FROM address AS a, domain AS d WHERE a.domain = d.id ORDER by a.domain, a.id`
-			rows, err = mdb.db.Query(q)
-		} else if ap.lpart == "*" && len(ap.domain) > 0 && ap.domain != "*" { // all in this domain
-			q += `FROM address AS a, domain AS d WHERE a.domain IS d.id AND d.name = ? ORDER BY d.id, a.id`
-			rows, err = mdb.db.Query(q, ap.domain)
-		} else {
-			return nil, ErrMdbBadMboxWild
-		}
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
-			a := &Address{}
-			if err = rows.Scan(&a.id, &a.localpart, &a.domain, &a.transport, &a.rclass, &a.access,
-				&a.dname); err != nil {
-				return nil, err
-			}
-			mb, err := mdb.lookupVMailboxByAddr(a)
-			if err != nil {
-				if err == ErrMdbNotMbox {
-					continue // just skip these guys
-				} else {
-					return nil, err
-				}
-			}
-			mb_list = append(mb_list, mb)
-			rowCnt++
-		}
-		if err = rows.Close(); err != nil {
-			return nil, err
-		}
-		if rowCnt == 0 {
-			return nil, ErrMdbNotMbox
-		}
-	} else { // single mailbox
-		a, err := mdb.lookupAddress(ap)
-		if err != nil {
-			return nil, err
-		}
+	for _, a := range a_list {
 		mb, err := mdb.lookupVMailboxByAddr(a)
 		if err != nil {
-			return nil, err
+			if err == ErrMdbNotMbox {
+				continue
+			} else {
+				break
+			}
 		}
 		mb_list = append(mb_list, mb)
+		rowCnt++
 	}
-	return mb_list, nil
+	if err == nil && rowCnt == 0 {
+		err = ErrMdbNoMailboxes
+	}
+	return mb_list, err
 }
 
 // lookupVMailboxByAddr

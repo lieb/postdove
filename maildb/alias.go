@@ -44,8 +44,8 @@ func (tg *Recipient) String() string {
 	if tg.t != nil {
 		if tg.ext.Valid {
 			fmt.Fprintf(&line, "%s+%s", tg.t.localpart, tg.ext.String)
-			if tg.t.domain.Valid {
-				fmt.Fprintf(&line, "@%s", tg.t.dname)
+			if !tg.t.IsLocal() {
+				fmt.Fprintf(&line, "@%s", tg.t.d.String())
 			}
 		} else {
 			fmt.Fprintf(&line, "%s", tg.t.String())
@@ -76,75 +76,31 @@ func (al *Alias) Id() int64 {
 // *@*         returns all virtual aliases in the database
 func (mdb *MailDB) LookupAlias(alias string) ([]*Alias, error) {
 	var (
-		ap      *AddressParts
 		al_list []*Alias
-		rows    *sql.Rows
+		a_list  []*Address
 		err     error
+		rowCnt  int
 	)
 
-	if ap, err = DecodeRFC822(alias); err != nil {
+	if a_list, err = mdb.FindAddress(alias); err != nil {
 		return nil, err
 	}
-	q := `SELECT a.id, a.localpart, a.domain, a.transport, a.rclass, a.access `
-	if ap.lpart == "*" || ap.domain == "*" { // a wildcard query
-		rowCnt := 0
-		if ap.lpart == "*" && ap.domain == "*" { // get all virtual aliases
-			q += `, d.name FROM address AS a, domain AS d WHERE a.domain = d.id ORDER by a.domain, a.id`
-			rows, err = mdb.db.Query(q)
-		} else if ap.lpart == "*" && ap.domain == "" { // get all the local aliases
-			q += `, '' FROM address AS a WHERE a.domain IS NULL ORDER BY a.id`
-			rows, err = mdb.db.Query(q, ap.lpart)
-		} else if len(ap.lpart) > 0 && ap.lpart != "*" && ap.domain == "" { // get this local alias
-			q += `, '' FROM address AS a WHERE a.localpart = ? AND a.domain IS NULL ORDER BY a.id`
-			rows, err = mdb.db.Query(q, ap.lpart)
-		} else if ap.lpart == "*" && len(ap.domain) > 0 && ap.domain != "*" { // all mboxes for this domain
-			q += `, d.name FROM address AS a, domain AS d WHERE a.domain IS d.id AND d.name = ? ORDER BY d.id, a.id`
-			rows, err = mdb.db.Query(q, ap.domain)
-		} else if len(ap.lpart) > 0 && ap.lpart != "*" && ap.domain == "*" { // this mbox in all domains
-			q += `, d.name FROM address AS a, domain AS d WHERE a.localpart = ? AND a.domain = d.id ORDER BY a.domain, a.id`
-			rows, err = mdb.db.Query(q, ap.lpart)
-		} else {
-			return nil, ErrMdbBadAliasWild
-		}
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
-			a := &Address{}
-			if err = rows.Scan(&a.id, &a.localpart, &a.domain, &a.transport, &a.rclass, &a.access,
-				&a.dname); err != nil {
-				return nil, err
-			}
-			al, err := mdb.lookupAliasByAddr(a)
-
-			if err != nil {
-				if err == ErrMdbNotAlias {
-					continue // just skip these guys
-				} else {
-					return nil, err
-				}
-			}
-			al_list = append(al_list, al)
-			rowCnt++
-		}
-		if err = rows.Close(); err != nil {
-			return nil, err
-		}
-		if rowCnt == 0 {
-			return nil, ErrMdbNotAlias
-		}
-	} else { // no wildcards, just one address
-		a, err := mdb.lookupAddress(ap)
-		if err != nil {
-			return nil, err
-		}
+	for _, a := range a_list {
 		al, err := mdb.lookupAliasByAddr(a)
 		if err != nil {
-			return nil, err
+			if err == ErrMdbNotAlias {
+				continue
+			} else {
+				break
+			}
 		}
 		al_list = append(al_list, al)
+		rowCnt++
 	}
-	return al_list, nil
+	if err == nil && rowCnt == 0 {
+		err = ErrMdbNoAliases
+	}
+	return al_list, err
 }
 
 // lookupAliasByAddr
