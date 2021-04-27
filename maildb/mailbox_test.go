@@ -35,11 +35,10 @@ import (
 // TestMailbox
 func TestMailbox(t *testing.T) {
 	var (
-		err     error
-		mdb     *MailDB
-		dir     string
-		mb      *VMailbox
-		mb_list []*VMailbox
+		err error
+		mdb *MailDB
+		dir string
+		mb  *VMailbox
 	)
 
 	fmt.Printf("Mailbox Test\n")
@@ -73,102 +72,127 @@ func TestMailbox(t *testing.T) {
 	}
 
 	// See if we can create a mailbox in nowhere
-	mb, err = mdb.NewVmailbox("lost@nowhere", "", "", "", "", "", "")
+	mdb.Begin()
+	mb, err = mdb.InsertVMailbox("lost@nowhere")
+	mdb.End(err == nil)
 	if err == nil {
 		t.Errorf("Add of lost@nowhere should have failed")
 	} else if err != ErrMdbMboxNotMboxDomain {
 		t.Errorf("Add of lost@nowhere, %s", err)
 	}
 	// see if we can add a user
-	mb, err = mdb.NewVmailbox("luke@skywalker", "", "", "", "", "", "")
+	mdb.Begin()
+	mb, err = mdb.InsertVMailbox("luke@skywalker")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("luke@skywalker: %s", err)
 		return // no sense continuing if we can do this...
 	}
 	// NOTE: this will change with schema default changes
-	if mb.String() != "luke@skywalker:{PLAIN}*:::1000::true" {
-		t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}*:::1000::true\", got %s", mb.String())
+	if mb.String() != "luke@skywalker:{PLAIN}*:::*:bytes=300M::true" {
+		t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}*:::*:bytes=300M::true\", got %s", mb.String())
 	}
 
 	// Now try and get it back
-	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
 		t.Errorf("Lookup luke@skywalker, %s", err)
 	} else {
-		if len(mb_list) != 1 {
-			t.Errorf("Lookup luke@skywalker: expected 1 returned, got %d", len(mb_list))
-		} else {
-			if mb_list[0].String() != "luke@skywalker:{PLAIN}*:::1000::true" {
-				t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}*:::1000::true\", got %s",
-					mb_list[0].String())
-			}
-			if !mb_list[0].IsEnabled() {
-				t.Errorf("Mailbox should start out as enabled")
-			}
+		if mb.String() != "luke@skywalker:{PLAIN}*:::*:bytes=300M::true" {
+			t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}*:::*:bytes=300M::true\", got %s",
+				mb.String())
+		}
+		if !mb.IsEnabled() {
+			t.Errorf("Mailbox should start out as enabled")
 		}
 	}
 
 	// Play with it
-	if err = mdb.DisableVMailbox("luke@skywalker"); err != nil {
-		t.Errorf("Disable of luke@skywalker, %s", err)
+	mdb.Begin()
+	if mb, err = mdb.GetVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Get luke@skywalker failed, %s", err)
+	} else {
+		if err = mb.Disable(); err != nil {
+			t.Errorf("Disable luke@skywalker failed, %s", err)
+		} else {
+			if mb.IsEnabled() {
+				t.Errorf("luke@skywalker should be disabled")
+			}
+		}
 	}
-	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	mdb.End(err == nil)
+	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
 		t.Errorf("luke@skywalker after disable, %s", err)
 	} else {
-		if mb_list[0].IsEnabled() {
+		if mb.IsEnabled() {
 			t.Errorf("luke@skywalker should be disabled")
 		}
 	}
-	if err = mdb.EnableVMailbox("luke@skywalker"); err != nil {
-		t.Errorf("Enable of luke@skywalker, %s", err)
-	}
-	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
-	if err != nil {
-		t.Errorf("luke@skywalker after enable, %s", err)
+	mdb.Begin()
+	if mb, err = mdb.GetVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Get luke@skywalker failed, %s", err)
 	} else {
-		if !mb_list[0].IsEnabled() {
+		if err = mb.Enable(); err != nil {
+			t.Errorf("Enable luke@skywalker failed, %s", err)
+		} else {
+			if !mb.IsEnabled() {
+				t.Errorf("luke@skywalker should be enabled")
+			}
+		}
+	}
+	mdb.End(err == nil)
+	mb, err = mdb.LookupVMailbox("luke@skywalker")
+	if err != nil {
+		t.Errorf("lookup luke@skywalker after enable, %s", err)
+	} else {
+		if !mb.IsEnabled() {
 			t.Errorf("luke@skywalker should be enabled")
 		}
 	}
 
 	// Change password
-	if mdb.ChangePassword("luke@skywalker", "Not123456", ""); err != nil {
-		t.Errorf("Change password luke@skywalker, %s", err)
+	mdb.Begin()
+	if mb, err = mdb.GetVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Get luke@skywalker failed, %s", err)
+	} else {
+		if err = mb.SetPassword("Not123456"); err != nil {
+			t.Errorf("Set password for luke@skywalker failed, %s", err)
+		}
 	}
+	mdb.End(err == nil)
 	// See if it changes
-	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
 		t.Errorf("Lookup luke@skywalker, %s", err)
 	} else {
-		if len(mb_list) != 1 {
-			t.Errorf("Lookup luke@skywalker: expected 1 returned, got %d", len(mb_list))
-		} else {
-			if mb_list[0].String() != "luke@skywalker:{PLAIN}Not123456:::1000::true" {
-				t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}Not123456:::1000::true\", got %s",
-					mb_list[0].String())
-			}
-			if !mb_list[0].IsEnabled() {
-				t.Errorf("Mailbox should start out as enabled")
-			}
+		if mb.String() != "luke@skywalker:{PLAIN}Not123456:::*:bytes=300M::true" {
+			t.Errorf("Luke@skywalker: expected \"luke@skywalker:{PLAIN}Not123456:::*:bytes=300M::true\", got %s",
+				mb.String())
 		}
 	}
 	// Change password and type
-	if mdb.ChangePassword("luke@skywalker", "Sn3@kyB1ts", "sha256"); err != nil {
-		t.Errorf("Change password luke@skywalker, %s", err)
+	mdb.Begin()
+	if mb, err = mdb.GetVMailbox("luke@skywalker"); err != nil {
+		t.Errorf("Get luke@skywalker failed, %s", err)
+	} else {
+		if err = mb.SetPassword("Sn3@kyB1ts"); err != nil {
+			t.Errorf("Set password for luke@skywalker failed, %s", err)
+		} else {
+			if err = mb.SetPwType("sha256"); err != nil {
+				t.Errorf("Set password type failed, %s", err)
+			}
+		}
 	}
+	mdb.End(err == nil)
 	// See if it changed
-	mb_list, err = mdb.LookupVMailbox("luke@skywalker")
+	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
 		t.Errorf("Lookup luke@skywalker, %s", err)
 	} else {
-		if len(mb_list) != 1 {
-			t.Errorf("Lookup luke@skywalker: expected 1 returned, got %d", len(mb_list))
-		} else {
-			if mb_list[0].String() != "luke@skywalker:{SHA256}Sn3@kyB1ts:::1000::true" {
-				t.Errorf("Luke@skywalker: expected \"luke@skywalker:{SHA256}Sn3@kyB1ts:::1000::true\", got %s",
-					mb_list[0].String())
-			}
+		if mb.String() != "luke@skywalker:{SHA256}Sn3@kyB1ts:::*:bytes=300M::true" {
+			t.Errorf("Luke@skywalker: expected \"luke@skywalker:{SHA256}Sn3@kyB1ts:::*:bytes=300M::true\", got %s",
+				mb.String())
 		}
 	}
 

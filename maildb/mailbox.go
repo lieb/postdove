@@ -23,7 +23,6 @@ package maildb
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // do I really need this?
@@ -31,23 +30,24 @@ import (
 
 // VMailbox
 type VMailbox struct {
-	addr     *Address
+	a        *Address
 	pw_type  string
 	password sql.NullString
 	uid      sql.NullInt64
 	gid      sql.NullInt64
-	quota    sql.NullInt64
 	home     sql.NullString
+	quota    sql.NullString
 	enable   int64
 }
 
 // String
+// FIX: should be Export()...
 func (vm *VMailbox) String() string {
 	var (
 		line strings.Builder
 	)
 
-	fmt.Fprintf(&line, "%s:", vm.addr.String())
+	fmt.Fprintf(&line, "%s:", vm.a.String())
 	if vm.password.Valid {
 		fmt.Fprintf(&line, "{%s}%s:", vm.pw_type, vm.password.String)
 	} else {
@@ -64,7 +64,7 @@ func (vm *VMailbox) String() string {
 		fmt.Fprintf(&line, ":")
 	}
 	if vm.quota.Valid {
-		fmt.Fprintf(&line, "%d:", vm.quota.Int64)
+		fmt.Fprintf(&line, "%s:", vm.quota.String) // flip this with home for export
 	} else {
 		fmt.Fprintf(&line, ":")
 	}
@@ -91,12 +91,13 @@ func (mb *VMailbox) IsEnabled() bool {
 	}
 }
 
-// LookupVMailbox
+// FindVMailbox
 // name@domain username for mailbox
 // *@domain all users in this domain
 // *@* all users in all domains
 // * error. No local system users (for now)
-func (mdb *MailDB) LookupVMailbox(mbox string) ([]*VMailbox, error) {
+// return a list of matched mailboxes
+func (mdb *MailDB) FindVMailbox(user string) ([]*VMailbox, error) {
 	var (
 		mb_list []*VMailbox
 		a_list  []*Address
@@ -104,20 +105,24 @@ func (mdb *MailDB) LookupVMailbox(mbox string) ([]*VMailbox, error) {
 		rowCnt  int
 	)
 
-	if a_list, err = mdb.FindAddress(mbox); err != nil {
+	if a_list, err = mdb.FindAddress(user); err != nil {
 		return nil, err
 	}
 	for _, a := range a_list {
-		mb, err := mdb.lookupVMailboxByAddr(a)
-		if err != nil {
-			if err == ErrMdbNotMbox {
-				continue
-			} else {
-				break
-			}
+		mb := &VMailbox{
+			a: a,
 		}
-		mb_list = append(mb_list, mb)
-		rowCnt++
+		qmb := `SELECT pw_type, password, uid, gid, quota, home, enable FROM vmailbox WHERE id IS ?`
+		row := mdb.db.QueryRow(qmb, a.id)
+		switch err := row.Scan(&mb.pw_type, &mb.password, &mb.uid, &mb.gid, &mb.quota, &mb.home, &mb.enable); err {
+		case sql.ErrNoRows:
+			continue // not a mailbox
+		case nil:
+			mb_list = append(mb_list, mb)
+			rowCnt++
+		default:
+			return nil, err
+		}
 	}
 	if err == nil && rowCnt == 0 {
 		err = ErrMdbNoMailboxes
@@ -125,13 +130,22 @@ func (mdb *MailDB) LookupVMailbox(mbox string) ([]*VMailbox, error) {
 	return mb_list, err
 }
 
-// lookupVMailboxByAddr
-func (mdb *MailDB) lookupVMailboxByAddr(addr *Address) (*VMailbox, error) {
+// LookupVmailbox
+// lookup a mailbox without transactions
+func (mdb *MailDB) LookupVMailbox(user string) (*VMailbox, error) {
+	var (
+		a   *Address
+		err error
+	)
+
+	if a, err = mdb.LookupAddress(user); err != nil {
+		return nil, err
+	}
 	mb := &VMailbox{
-		addr: addr,
+		a: a,
 	}
 	qmb := `SELECT pw_type, password, uid, gid, quota, home, enable FROM vmailbox WHERE id IS ?`
-	row := mdb.db.QueryRow(qmb, addr.id)
+	row := mdb.db.QueryRow(qmb, a.id)
 	switch err := row.Scan(&mb.pw_type, &mb.password, &mb.uid, &mb.gid, &mb.quota, &mb.home, &mb.enable); err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbNotMbox
@@ -142,184 +156,80 @@ func (mdb *MailDB) lookupVMailboxByAddr(addr *Address) (*VMailbox, error) {
 	}
 }
 
-// NewVmailbox
-// An empty string for an arg implies take the schema default
-func (mdb *MailDB) NewVmailbox(vaddr string, passwd string,
-	userid string, grpid string, quotaLim string,
-	mailhome string, enabled string) (*VMailbox, error) {
+// GetVmailbox
+// lookup a mailbox under a transaction
+func (mdb *MailDB) GetVMailbox(user string) (*VMailbox, error) {
 	var (
-		err      error
-		row      *sql.Row
-		ap       *AddressParts
-		password sql.NullString
-		uid      sql.NullInt64
-		gid      sql.NullInt64
-		quota    sql.NullInt64
-		home     sql.NullString
-		enable   sql.NullInt64
-		addr     *Address
-		rowCount int64
+		a   *Address
+		err error
+	)
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
+	}
+	if a, err = mdb.GetAddress(user); err != nil {
+		return nil, err
+	}
+	mb := &VMailbox{
+		a: a,
+	}
+	qmb := `SELECT pw_type, password, uid, gid, quota, home, enable FROM vmailbox WHERE id IS ?`
+	row := mdb.tx.QueryRow(qmb, a.id)
+	switch err := row.Scan(&mb.pw_type, &mb.password, &mb.uid, &mb.gid, &mb.quota, &mb.home, &mb.enable); err {
+	case sql.ErrNoRows:
+		return nil, ErrMdbNotMbox
+	case nil:
+		return mb, nil
+	default:
+		return nil, err
+	}
+}
+
+// InsertVMailbox
+// must be under a transaction
+func (mdb *MailDB) InsertVMailbox(user string) (*VMailbox, error) {
+	var (
+		a   *Address
+		err error
 	)
 
-	// First validate args
-	if ap, err = DecodeRFC822(vaddr); err != nil {
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
+	}
+	// the domain must exist and be a vmailbox class
+	// if we fail with a dup entry that could be either an already existing mbox
+	// or this address is an alias or something (which must be deleted before we can proceed)
+	if a, err = mdb.InsertAddress(user); err != nil {
 		return nil, err
 	}
-	if ap.domain == "" {
-		return nil, ErrMdbMboxNoDomain
-	}
-	if passwd == "" {
-		password = NullStr
-	} else {
-		password = sql.NullString{Valid: true, String: passwd}
-	}
-	if userid == "" {
-		uid = NullInt
-	} else {
-		if i, err := strconv.ParseInt(userid, 10, 64); err != nil {
-			return nil, ErrMdbBadUid
-		} else {
-			uid = sql.NullInt64{Valid: true, Int64: i}
-		}
-	}
-	if grpid == "" {
-		gid = NullInt
-	} else {
-		if i, err := strconv.ParseInt(grpid, 10, 64); err != nil {
-			return nil, ErrMdbBadGid
-		} else {
-			gid = sql.NullInt64{Valid: true, Int64: i}
-		}
-	}
-	if quotaLim == "" {
-		quota = NullInt
-	} else {
-		if i, err := strconv.ParseInt(quotaLim, 10, 64); err != nil {
-			return nil, err
-		} else {
-			quota = sql.NullInt64{Valid: true, Int64: i}
-		}
-	}
-	if mailhome == "" {
-		home = NullStr
-	} else {
-		home = sql.NullString{Valid: true, String: mailhome}
-	}
-	if enabled == "" {
-		enable = NullInt
-	} else {
-		b, err := strconv.ParseBool(enabled)
-		if err != nil {
-			return nil, err
-		} else {
-			if b {
-				enable = sql.NullInt64{Valid: true, Int64: 1}
-			} else {
-				enable = sql.NullInt64{Valid: true, Int64: 0}
-			}
-		}
-	}
-
-	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return nil, err
-	}
-	defer mdb.end(err == nil)
-
-	// The domain must exist. All that dovecot wiring must be in place first
-	// Think of this as a spellcheck...
-	d, err := mdb.LookupDomain(ap.domain)
-	if err != nil {
-		return nil, err
-	} else if !d.IsVmailbox() {
+	// if we just created a new domain, it will be the default (not vmailbox) and fail
+	if !a.InVMailDomain() {
 		return nil, ErrMdbMboxNotMboxDomain
 	}
-	if addr, err = mdb.lookupAddress(ap); err != nil {
-		if err == ErrMdbAddressNotFound { // must be a new user
-			if addr, err = mdb.insertAddress(ap); err != nil {
-				return nil, err
-			}
-		} else { // Something bad
-			return nil, err
-		}
-	}
-	// make sure it's not an alias
-	row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", addr.id)
-	if err = row.Scan(&rowCount); err != nil {
-		return nil, err
-	}
-	if rowCount > 0 {
-		return nil, ErrMdbIsAlias
-	}
-
 	// Now we can insert the mailbox.
-	_, err = mdb.tx.Exec("INSERT INTO vmailbox (id) VALUES (?)", addr.id)
-	if err != nil { // we'll be rolling back the new address we just created...
-		return nil, fmt.Errorf("NewVmailbox: could not insert new mailbox, %s", err)
-	}
-	// This is a little convoluted but this way we can set the defaults in the schema, not the app code
-	if password.Valid {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET password = ? WHERE id IS ?", password.String, addr.id)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if uid.Valid {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET uid = ? WHERE id IS ?", uid.Int64, addr.id)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if gid.Valid {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET gid = ? WHERE id IS ?", gid.Int64, addr.id)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if quota.Valid {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET quota = ? WHERE id IS ?", quota.Int64, addr.id)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if home.Valid {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET home = ? WHERE id IS ?", home.String, addr.id)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if enable.Valid {
-		_, err = mdb.tx.Exec("UPDATE vmailbox SET enable = ? WHERE id IS ?", enable.Int64, addr.id)
-		if err != nil {
-			return nil, err
-		}
+	_, err = mdb.tx.Exec("INSERT INTO vmailbox (id) VALUES (?)", a.Id())
+	if err != nil {
+		return nil, err
 	}
 	// now let's see what we actually got...
 	vm := &VMailbox{
-		addr: addr,
+		a: a,
 	}
-	row = mdb.tx.QueryRow("SELECT pw_type, password, uid, gid, quota, home, enable FROM vmailbox WHERE id IS ?",
-		addr.id)
+	row := mdb.tx.QueryRow("SELECT pw_type, password, uid, gid, quota, home, enable FROM vmailbox WHERE id IS ?",
+		a.Id())
 	if err = row.Scan(&vm.pw_type, &vm.password, &vm.uid, &vm.gid, &vm.quota, &vm.home, &vm.enable); err != nil {
 		return nil, err
 	}
 	return vm, nil
 }
 
-// ChangePassword
-func (mdb *MailDB) ChangePassword(vaddr string, newPassword string, pwType string) error {
-	var (
-		ap  *AddressParts
-		a   *Address
-		res sql.Result
-		err error
-	)
+// SetPwType
+func (m *VMailbox) SetPwType(pwType string) error {
+	var err error
 
-	if ap, err = DecodeRFC822(vaddr); err != nil {
-		return err
-	}
+	// Check for legit type
 	switch strings.ToLower(pwType) { // This is not an exhaustive list ATM
 	case "":
+		pwType = "DEFAULT"
 		break // use default
 	case "plain":
 		pwType = "PLAIN"
@@ -330,105 +240,234 @@ func (mdb *MailDB) ChangePassword(vaddr string, newPassword string, pwType strin
 	default:
 		return ErrMdbMboxBadPw
 	}
-
-	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-
-	if a, err = mdb.lookupAddress(ap); err != nil {
-		return err
-	}
-	if pwType == "" {
-		res, err = mdb.tx.Exec("UPDATE vmailbox SET password = ? WHERE id IS ?", newPassword, a.id)
-	} else {
-		res, err = mdb.tx.Exec("UPDATE vmailbox SET pw_type = ?, password = ? WHERE id IS ?",
-			pwType, newPassword, a.id)
-	}
-	if err != nil {
-		return err
-	} else {
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET pw_type = ? WHERE id = ?", pwType, m.a.id)
+	if err == nil {
 		c, err := res.RowsAffected()
-		if err != nil {
-			return err
-		} else if c == 0 {
-			return ErrMdbBadUpdate
+		if err == nil {
+			if c == 1 {
+				m.pw_type = pwType
+			} else {
+				err = ErrMdbBadUpdate
+			}
 		}
 	}
-	return nil
+	return err
 }
 
-// EnableVMailbox
-func (mdb *MailDB) EnableVMailbox(vaddr string) error {
+// SetPassword
+func (m *VMailbox) SetPassword(ps string) error {
 	var (
-		ap  *AddressParts
-		a   *Address
-		res sql.Result
 		err error
+		pw  sql.NullString
 	)
 
-	if ap, err = DecodeRFC822(vaddr); err != nil {
-		return err
-	}
-
-	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-
-	if a, err = mdb.lookupAddress(ap); err != nil {
-		return err
-	}
-	res, err = mdb.tx.Exec("UPDATE vmailbox SET enable = 1 WHERE id IS ?", a.id)
-	if err != nil {
-		return err
+	if ps == "" {
+		pw = NullStr
 	} else {
+		pw = sql.NullString{Valid: true, String: ps}
+	}
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET password = ? WHERE id = ?", pw, m.a.id)
+	if err == nil {
 		c, err := res.RowsAffected()
-		if err != nil {
-			return err
-		} else if c == 0 {
-			return ErrMdbBadUpdate
+		if err == nil {
+			if c == 1 {
+				m.password = pw
+			} else {
+				err = ErrMdbBadUpdate
+			}
 		}
 	}
-	return nil
+	return err
 }
 
-// DisableVMailbox
-func (mdb *MailDB) DisableVMailbox(vaddr string) error {
-	var (
-		ap  *AddressParts
-		a   *Address
-		res sql.Result
-		err error
-	)
+// SetUid
+func (m *VMailbox) SetUid(uid int64) error {
+	var err error
 
-	if ap, err = DecodeRFC822(vaddr); err != nil {
-		return err
-	}
-
-	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-
-	if a, err = mdb.lookupAddress(ap); err != nil {
-		return err
-	}
-	res, err = mdb.tx.Exec("UPDATE vmailbox SET enable = 0 WHERE id IS ?", a.id)
-	if err != nil {
-		return err
-	} else {
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET uid = ? WHERE id = ?", uid, m.a.id)
+	if err == nil {
 		c, err := res.RowsAffected()
-		if err != nil {
-			return err
-		} else if c == 0 {
-			return ErrMdbBadUpdate
+		if err == nil {
+			if c == 1 {
+				m.uid = sql.NullInt64{Valid: true, Int64: uid}
+			} else {
+				err = ErrMdbBadUpdate
+			}
 		}
 	}
-	return nil
+	return err
+}
+
+// ClearUid
+func (m *VMailbox) ClearUid() error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET uid = NULL WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.uid = NullInt
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// SetGid
+func (m *VMailbox) SetGid(gid int64) error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET gid = ? WHERE id = ?", gid, m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.gid = sql.NullInt64{Valid: true, Int64: gid}
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// ClearGid
+func (m *VMailbox) ClearGid() error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET gid = NULL WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.gid = NullInt
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// SetHome
+func (m *VMailbox) SetHome(home string) error {
+	var (
+		err error
+		hm  sql.NullString
+	)
+
+	if home == "" {
+		hm = NullStr
+	} else {
+		hm = sql.NullString{Valid: true, String: home}
+	}
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET home = ? WHERE id = ?", hm, m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.home = hm
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// SetQuota
+func (m *VMailbox) SetQuota(quota string) error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET quota = ? WHERE id = ?", quota, m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.quota = sql.NullString{Valid: true, String: quota}
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// ClearQuota
+func (m *VMailbox) ClearQuota() error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET quota = NULL WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.quota = NullStr
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// ResetQuota
+func (m *VMailbox) ResetQuota() error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET quota = DEFAULT WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				row := m.a.mdb.tx.QueryRow("SELECT quota FROM vmailbox WHERE id IS ?",
+					m.a.Id())
+				err = row.Scan(&m.quota)
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// Enable
+func (m *VMailbox) Enable() error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET enable = 1 WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.enable = 1
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// Disable
+func (m *VMailbox) Disable() error {
+	var err error
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET enable = 0 WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.enable = 0
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
 }
 
 // DeleteVMailbox
@@ -436,14 +475,8 @@ func (mdb *MailDB) DisableVMailbox(vaddr string) error {
 // here because dovecot admin has directory structure that needs the domain intact.
 func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 	var (
-		ap  *AddressParts
-		a   *Address
 		err error
 	)
-
-	if ap, err = DecodeRFC822(vaddr); err != nil {
-		return err
-	}
 
 	// Enter a transaction for everything else
 	if err = mdb.begin(); err != nil {
@@ -451,10 +484,11 @@ func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 	}
 	defer mdb.end(err == nil)
 
-	if a, err = mdb.lookupAddress(ap); err != nil {
+	vm, err := mdb.GetVMailbox(vaddr)
+	if err != nil {
 		return err
 	}
-	res, err := mdb.tx.Exec("DELETE FROM vmailbox WHERE id IS ?", a.id)
+	res, err := mdb.tx.Exec("DELETE FROM vmailbox WHERE id IS ?", vm.a.id)
 	if err != nil {
 		if err.Error() == "ErrMdbMboxIsRecip" {
 			return ErrMdbMboxIsRecip
