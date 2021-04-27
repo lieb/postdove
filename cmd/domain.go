@@ -93,9 +93,9 @@ func init() {
 	addCmd.AddCommand(addDomain)
 	deleteCmd.AddCommand(deleteDomain)
 	editCmd.AddCommand(editDomain)
-	editDomain.Flags().IntVarP(&vUid, "uid", "u", 0,
+	editDomain.Flags().IntVarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
 		"Virtual user id for this domain")
-	editDomain.Flags().IntVarP(&vGid, "gid", "g", 0,
+	editDomain.Flags().IntVarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
 		"Virtual group id for this domain")
 	editDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
 		"Restriction class for this domain")
