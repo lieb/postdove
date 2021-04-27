@@ -48,6 +48,30 @@ func (a *Address) IsLocal() bool {
 	}
 }
 
+// IsMailbox
+func (a *Address) IsMailbox() bool {
+	var (
+		cnt int
+		err error
+	)
+	row := a.mdb.db.QueryRow("SELECT COUNT(*) FROM address WHERE id = ?", a.id)
+	if err := row.Scan(&cnt); err == nil {
+		return cnt > 0
+	}
+	panic(fmt.Errorf("Select count() should not fail, %s", err))
+}
+
+// InVmailDomain
+func (a *Address) InVMailDomain() bool {
+	return a.d.IsVmailbox()
+}
+
+// Id
+func (a *Address) Id() int64 {
+	return a.id
+}
+
+// String
 func (a *Address) String() string {
 	var (
 		line strings.Builder
@@ -132,6 +156,114 @@ SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
 			addr.d = d
 		}
 		return addr, nil
+	default:
+		return nil, err
+	}
+}
+
+// LookupAddress
+// Lookup an address without an active transaction
+func (mdb *MailDB) LookupAddress(addr string) (*Address, error) {
+	var (
+		ap  *AddressParts
+		row *sql.Row
+		err error
+	)
+
+	if ap, err = DecodeRFC822(addr); err != nil {
+		return nil, err
+	}
+	a := &Address{
+		mdb: mdb,
+	}
+	d := &Domain{
+		mdb: mdb,
+	}
+	if ap.domain == "" { // A "local" address
+		qa := `
+SELECT id, localpart, transport, rclass, access FROM address
+ WHERE localpart = ? AND domain IS NULL
+`
+		row = mdb.db.QueryRow(qa, ap.lpart)
+		err = row.Scan(
+			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+	} else { // A full RFC822 address
+		qa := `
+SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
+       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
+ FROM address AS a, domain AS d
+ WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
+`
+		row = mdb.db.QueryRow(qa, ap.lpart, ap.domain)
+		err = row.Scan(
+			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access,
+			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
+	}
+	switch err {
+	case sql.ErrNoRows:
+		return nil, ErrMdbAddressNotFound
+	case nil:
+		a.mdb = mdb
+		if ap.domain != "" {
+			a.d = d
+		}
+		return a, nil
+	default:
+		return nil, err
+	}
+}
+
+// GetAddress
+// Lookup an address under and active transaction
+// really a copy of LookupAddress with transaction queries...
+func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
+	var (
+		ap  *AddressParts
+		row *sql.Row
+		err error
+	)
+
+	if ap, err = DecodeRFC822(addr); err != nil {
+		return nil, err
+	}
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
+	}
+	a := &Address{
+		mdb: mdb,
+	}
+	d := &Domain{
+		mdb: mdb,
+	}
+	if ap.domain == "" { // A "local" address
+		qa := `
+SELECT id, localpart, transport, rclass, access FROM address
+ WHERE localpart = ? AND domain IS NULL
+`
+		row = mdb.tx.QueryRow(qa, ap.lpart)
+		err = row.Scan(
+			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+	} else { // A full RFC822 address
+		qa := `
+SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
+       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
+ FROM address AS a, domain AS d
+ WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
+`
+		row = mdb.tx.QueryRow(qa, ap.lpart, ap.domain)
+		err = row.Scan(
+			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access,
+			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
+	}
+	switch err {
+	case sql.ErrNoRows:
+		return nil, ErrMdbAddressNotFound
+	case nil:
+		a.mdb = mdb
+		if ap.domain != "" {
+			a.d = d
+		}
+		return a, nil
 	default:
 		return nil, err
 	}
@@ -321,6 +453,67 @@ func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
 			if err = row.Scan(&addr.transport, &addr.rclass, &addr.access); err == nil {
 				addr.d = d
 				return addr, nil
+			}
+		}
+	}
+	return nil, err
+}
+
+// InsertAddress
+// Insert an address MUST be under a transaction
+func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
+	var (
+		ap  *AddressParts
+		a   *Address
+		d   *Domain
+		row *sql.Row
+		res sql.Result
+		err error
+	)
+
+	if mdb.tx == nil {
+		return nil, ErrMdbTransaction
+	}
+	if ap, err = DecodeRFC822(address); err != nil {
+		return nil, err
+	}
+	if ap.domain == "" { // A "local user" entry
+		res, err = mdb.tx.Exec("INSERT INTO address (localpart) VALUES (?)", ap.lpart)
+		if err != nil {
+			if strings.Contains(err.Error(), "Duplicate insert") {
+				err = ErrMdbDupAddress // caught by trigger, not constraint
+			}
+		}
+	} else { // A Virtual alias entry
+		if d, err = mdb.GetDomain(ap.domain); err != nil {
+			if err == ErrMdbDomainNotFound {
+				d, err = mdb.InsertDomain(ap.domain, "")
+			}
+		}
+		if err == nil {
+			res, err = mdb.tx.Exec("INSERT INTO address (localpart, domain) VALUES (?, ?)",
+				ap.lpart, d.Id())
+			if err != nil {
+				if IsErrConstraintUnique(err) {
+					err = ErrMdbDupAddress
+				}
+			}
+		} else {
+			return nil, err // error with domain
+		}
+	}
+	if err == nil {
+		if aid, err := res.LastInsertId(); err == nil {
+			a = &Address{
+				mdb:       mdb,
+				id:        aid,
+				localpart: ap.lpart,
+			}
+			row = mdb.tx.QueryRow(
+				"SELECT transport, rclass, access FROM address WHERE id IS ?", aid)
+			if err = row.Scan(&a.transport, &a.rclass, &a.access); err == nil {
+				a.d = d
+				return a, nil
 			}
 		}
 	}
