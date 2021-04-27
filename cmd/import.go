@@ -78,6 +78,7 @@ const (
 	SIMPLE  ImportType = iota // key WS+ text
 	POSTFIX                   // key WS+ [token ',' WS*]+
 	ALIASES                   // key ':' WS* [token ',' WS*]+
+	PWFILE                    // fields sep by ':'
 )
 
 // procImport
@@ -134,7 +135,7 @@ func procImport(cmd *cobra.Command, use ImportType, worker func([]string) error)
 			}
 		}
 		if err = procLine(line, use, worker); err != nil {
-			err = fmt.Errorf("At line %d: %s", lineno, err)
+			err = fmt.Errorf("Near line %d: %s", lineno, err)
 			break
 		}
 		imports++
@@ -142,7 +143,7 @@ func procImport(cmd *cobra.Command, use ImportType, worker func([]string) error)
 	}
 	if err == nil && segment != "" {
 		if err = procLine(segment, use, worker); err != nil {
-			err = fmt.Errorf("At line %d: %s", lineno, err)
+			err = fmt.Errorf("Near line %d: %s", lineno, err)
 		}
 		imports++
 	}
@@ -167,22 +168,25 @@ func procLine(line string, use ImportType, worker func([]string) error) error {
 	onColon := func(c rune) bool { return c == ':' }
 
 	sp := strings.IndexAny(line, " \t")
-	if sp == -1 {
-		return fmt.Errorf("only one token")
-	}
 	// fall thru with concatenated line
 	switch use { // requested line syntax
-	case SIMPLE:
+	case SIMPLE: // key SP value string NL
+		if sp == -1 {
+			return fmt.Errorf("only one token")
+		}
 		tokens = []string{line[0:sp],
 			strings.Trim(line[sp:], " \t")}
-	case POSTFIX:
+	case POSTFIX: // key SP value [',' value]*
+		if sp == -1 {
+			return fmt.Errorf("only one token")
+		}
 		tokens = []string{line[0:sp]} // first the key by WS
 		vals := strings.FieldsFunc(line[sp:], onComma)
 		for _, v := range vals {
 			v = strings.Trim(v, " \t")
 			tokens = append(tokens, v) // then the tokens by ','
 		}
-	case ALIASES:
+	case ALIASES: // key ':' value [',' value]*
 		if !strings.Contains(line, ":") {
 			return fmt.Errorf("key must be followed by a ':'")
 		}
@@ -197,6 +201,11 @@ func procLine(line string, use ImportType, worker func([]string) error) error {
 				tokens = append(tokens, v) // then the tokens by ','
 			}
 		}
+	case PWFILE: // field [':' field]+
+		if !strings.Contains(line, ":") {
+			return fmt.Errorf("line must be fields separated by a ':'")
+		}
+		tokens = strings.Split(line, ":")
 	}
 	if len(tokens) > 0 {
 		err = worker(tokens)

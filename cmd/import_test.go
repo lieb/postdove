@@ -131,6 +131,24 @@ steve mike
 			[]string{"steve", "mike"},
 		},
 	},
+	// Password file format
+	{
+		test:    "Password",
+		use:     PWFILE,
+		errcode: "fields separated by a",
+		importFile: `
+a:b:c:d:e
+a:b: c :d:e
+a:b:c::e
+abcde
+`,
+		tokens: [][]string{
+			[]string{"a", "b", "c", "d", "e"},
+			[]string{"a", "b", " c ", "d", "e"},
+			[]string{"a", "b", "c", "", "e"},
+			[]string{"a", "b", "c", "d", "e"},
+		},
+	},
 }
 
 // test_worker test dummy to compare results to expected tokens
