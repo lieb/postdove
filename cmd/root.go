@@ -57,7 +57,12 @@ var importCmd = &cobra.Command{
 	Short: "Import a file to the database",
 	Long: `Import a file to the postfix/dovecot database. Most of these files
 use the same format required for postfix key/value pair databases`,
-	PersistentPreRunE:  importRedirect,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := callPersistentPreRunE(cmd, args); err != nil {
+			return err
+		}
+		return importRedirect(cmd, args)
+	},
 	PersistentPostRunE: importClose,
 }
 
@@ -67,7 +72,12 @@ var exportCmd = &cobra.Command{
 	Short: "Export the specified table to a file or stdout",
 	Long: `Export the specified table to a file using the expected format
 used by postfix and/or dovecot.`,
-	PersistentPreRunE:  exportRedirect,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := callPersistentPreRunE(cmd, args); err != nil {
+			return err
+		}
+		return exportRedirect(cmd, args)
+	},
 	PersistentPostRunE: exportClose,
 }
 
@@ -106,6 +116,20 @@ func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
 }
 
+// callPersistentPreRunE
+// hack to chain preruns for import/export/??
+// otherwise, the db doesn't get opened which is a root prerun for everything!
+func callPersistentPreRunE(cmd *cobra.Command, args []string) error {
+	if parent := cmd.Parent(); parent != nil {
+		if parent.PersistentPreRunE != nil {
+			if err := parent.PersistentPreRunE(parent, args); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // openDB persistent root pre-run on all commands
 // make the DB open for business
 func openDB(cmd *cobra.Command, args []string) error {
@@ -121,6 +145,7 @@ func openDB(cmd *cobra.Command, args []string) error {
 // persistent post-run to clean up the DB
 func closeDB(cmd *cobra.Command, args []string) {
 	mdb.Close()
+	mdb = nil
 }
 
 func init() {

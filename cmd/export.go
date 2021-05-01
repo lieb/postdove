@@ -36,6 +36,9 @@ func exportRedirect(cmd *cobra.Command, args []string) error {
 		err error
 	)
 
+	if mdb == nil {
+		panic("Export redirect: mbd is nil")
+	}
 	if cmd.Flags().Changed("output") {
 		if outFilePath == "-" {
 			outFile = os.Stdout
@@ -58,6 +61,9 @@ func exportClose(cmd *cobra.Command, args []string) error {
 		err error
 	)
 
+	if mdb == nil {
+		panic("Export close: mbd is nil")
+	}
 	if savedOut != nil {
 		cmd.PrintErrf("exportClose: savedOut set\n")
 		outWriter = cmd.OutOrStdout()
