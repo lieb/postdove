@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strconv"
 	"strings"
 
 	"github.com/mattn/go-sqlite3" // do I really need this here?
@@ -121,8 +122,9 @@ func IsErrConstraintNotNull(err error) bool {
 
 // MailDB
 type MailDB struct {
-	db *sql.DB
-	tx *sql.Tx
+	db    *sql.DB
+	tx    *sql.Tx
+	dflts map[string]TableInfo
 }
 
 // NewMailDB
@@ -136,7 +138,126 @@ func NewMailDB(dbPath string) (*MailDB, error) {
 	mdb := &MailDB{
 		db: db,
 	}
+	mdb.dflts = make(map[string]TableInfo)
 	return mdb, nil
+}
+
+type TableInfo struct {
+	cid     int64
+	name    string
+	colType string
+	notNull int64
+	dflt    sql.NullString
+	pk      int64
+}
+
+// FindDefaults
+// This is deep Sqlite3 magic. The problem is that one can
+// do and INSERT and get a column default (from the schema) for
+// any column un-named in the INSERT. Wouldn't it be also nice to be able to:
+//
+//     UPDATE table SET foo = DEFAULT
+//
+// Yes it would but SQL doesn't allow it so everybody does a workaround.
+// Here is how we do it for Sqlite3. We build a map of default fields by
+// doing SELECTs from magic tables and functions. Porting to another DB
+// will require engine specific incantations/supplications to the query god.
+func (mdb *MailDB) findDefaults() error {
+	var (
+		info   TableInfo
+		tables []string
+		table  string
+		rows   *sql.Rows
+		err    error
+	)
+
+	rows, err = mdb.db.Query("SELECT name FROM sqlite_master WHERE type = 'table'")
+	if err != nil {
+		return fmt.Errorf("table lookup broke: %s", err)
+	}
+	for rows.Next() {
+		if err = rows.Scan(&table); err != nil {
+			return fmt.Errorf("Table lookup scan failed: %s", err)
+		}
+		tables = append(tables, strings.ToLower(table))
+	}
+	if err = rows.Close(); err != nil {
+		return fmt.Errorf("table lookup scan close broke: %s", err)
+	}
+	for _, table = range tables {
+
+		rows, err = mdb.db.Query("SELECT * FROM pragma_table_info(?)", table)
+		if err != nil {
+			return fmt.Errorf("table_info broke: %s", err)
+		}
+		for rows.Next() {
+			if err = rows.Scan(&info.cid, &info.name, &info.colType,
+				&info.notNull, &info.dflt, &info.pk); err != nil {
+				return fmt.Errorf("table_info scan broke: %s", err)
+			}
+			if info.dflt.Valid { // we are only interested in cols with defaults
+				mdb.dflts[table+"."+info.name] = info
+			}
+		}
+	}
+	if err = rows.Close(); err != nil {
+		return fmt.Errorf("table_info scan close broke: %s", err)
+	}
+	if len(mdb.dflts) == 0 {
+		return fmt.Errorf("No defaults found")
+	}
+	return nil
+}
+
+// DefaultString
+// We panic() here because an error here means someone has
+// changed/mis-matched to the schema and at that point
+// the best thing to do is crash, not mess up the DB
+func (mdb *MailDB) DefaultString(sym string) string {
+	var (
+		i  TableInfo
+		ok bool
+	)
+
+	if len(mdb.dflts) == 0 {
+		err := mdb.findDefaults()
+		if err != nil {
+			panic(fmt.Errorf("findDefaults: %s", err))
+		}
+	}
+	if i, ok = mdb.dflts[sym]; !ok {
+		panic(fmt.Errorf("%s not found", sym))
+	}
+	if i.colType != "TEXT" {
+		panic(fmt.Errorf("DefaultString: %s is %s, should be 'TEXT'", sym, i.colType))
+	}
+	return strings.Trim(i.dflt.String, "'\"") // gets stored with the schema quote marks...
+}
+
+func (mdb *MailDB) DefaultInt(sym string) int64 {
+	var (
+		i  TableInfo
+		ok bool
+	)
+
+	if len(mdb.dflts) == 0 {
+		err := mdb.findDefaults()
+		if err != nil {
+			panic(fmt.Errorf("findDefaults: %s", err))
+		}
+	}
+	if i, ok = mdb.dflts[sym]; !ok {
+		panic(fmt.Errorf("%s not found", sym))
+	}
+	if i.colType != "INTEGER" {
+		panic(fmt.Errorf("DefaultInt: %s is %s, should be 'INTEGER'", sym, i.colType))
+	}
+	if num, err := strconv.ParseInt(i.dflt.String, 10, 64); err != nil {
+		panic(fmt.Errorf("DefaultInt: parse of %s(%s) to integer failed, %s",
+			sym, i.dflt.String, err))
+	} else {
+		return num
+	}
 }
 
 // LoadSchema
