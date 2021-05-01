@@ -82,6 +82,123 @@ func (vm *VMailbox) String() string {
 	return line.String()
 }
 
+// Export
+func (vm *VMailbox) Export() string {
+	var (
+		line strings.Builder
+	)
+
+	fmt.Fprintf(&line, "%s:", vm.a.String())
+	if vm.password.Valid {
+		fmt.Fprintf(&line, "{%s}%s:", vm.pw_type, vm.password.String)
+	} else {
+		fmt.Fprintf(&line, "{%s}*:", vm.pw_type) // maybe this should be a required?
+	}
+	if vm.uid.Valid {
+		fmt.Fprintf(&line, "%d:", vm.uid.Int64)
+	} else {
+		fmt.Fprintf(&line, ":")
+	}
+	if vm.gid.Valid {
+		fmt.Fprintf(&line, "%d::", vm.gid.Int64)
+	} else {
+		fmt.Fprintf(&line, "::")
+	}
+	// skip GECOS field
+	if vm.home.Valid {
+		fmt.Fprintf(&line, "%s::", vm.home.String)
+	} else {
+		fmt.Fprintf(&line, "::")
+	}
+	// skip shell field
+	if vm.quota.Valid {
+		fmt.Fprintf(&line, "userdb_quota_rule=%s ", vm.quota.String)
+	} else {
+		fmt.Fprintf(&line, "userdb_quota_rule=none ")
+	}
+	if vm.enable != 0 {
+		fmt.Fprintf(&line, "mbox_enabled=true")
+	} else {
+		fmt.Fprintf(&line, "mbox_enabled=false")
+	}
+
+	return line.String()
+}
+
+// User
+func (vm *VMailbox) User() string {
+	return vm.a.String()
+}
+
+// PwType
+func (vm *VMailbox) PwType() string {
+	var line strings.Builder
+
+	fmt.Fprintf(&line, "%s", vm.pw_type)
+	return line.String()
+}
+
+// Password
+func (vm *VMailbox) Password() string {
+	var line strings.Builder
+
+	if vm.password.Valid {
+		fmt.Fprintf(&line, "%s", vm.password.String)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Uid
+func (vm *VMailbox) Uid() string {
+	var line strings.Builder
+
+	if vm.uid.Valid {
+		fmt.Fprintf(&line, "%d", vm.uid.Int64)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Gid
+func (vm *VMailbox) Gid() string {
+	var line strings.Builder
+
+	if vm.gid.Valid {
+		fmt.Fprintf(&line, "%d", vm.gid.Int64)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+//Home
+func (vm *VMailbox) Home() string {
+	var line strings.Builder
+
+	if vm.home.Valid {
+		fmt.Fprintf(&line, "%s", vm.home.String)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+//Quota
+// only the value here. Caller has to wrap appropriately if going to Dovecot
+func (vm *VMailbox) Quota() string {
+	var line strings.Builder
+
+	if vm.quota.Valid {
+		fmt.Fprintf(&line, "%s", vm.quota.String)
+	} else {
+		fmt.Fprintf(&line, "none")
+	}
+	return line.String()
+}
+
 // IsEnabled
 func (mb *VMailbox) IsEnabled() bool {
 	if mb.enable != 0 {
@@ -229,7 +346,7 @@ func (m *VMailbox) SetPwType(pwType string) error {
 	// Check for legit type
 	switch strings.ToLower(pwType) { // This is not an exhaustive list ATM
 	case "":
-		pwType = "DEFAULT"
+		pwType = m.a.mdb.DefaultString("vmailbox.pw_type")
 		break // use default
 	case "plain":
 		pwType = "PLAIN"
@@ -272,6 +389,26 @@ func (m *VMailbox) SetPassword(ps string) error {
 		if err == nil {
 			if c == 1 {
 				m.password = pw
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
+// ClearPassword
+func (m *VMailbox) ClearPassword() error {
+	var (
+		err error
+	)
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET password = NULL WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.password = NullStr
 			} else {
 				err = ErrMdbBadUpdate
 			}
@@ -378,6 +515,26 @@ func (m *VMailbox) SetHome(home string) error {
 	return err
 }
 
+// ClearHome
+func (m *VMailbox) ClearHome() error {
+	var (
+		err error
+	)
+
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET home = NULL WHERE id = ?", m.a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				m.home = NullStr
+			} else {
+				err = ErrMdbBadUpdate
+			}
+		}
+	}
+	return err
+}
+
 // SetQuota
 func (m *VMailbox) SetQuota(quota string) error {
 	var err error
@@ -418,7 +575,8 @@ func (m *VMailbox) ClearQuota() error {
 func (m *VMailbox) ResetQuota() error {
 	var err error
 
-	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET quota = DEFAULT WHERE id = ?", m.a.id)
+	res, err := m.a.mdb.tx.Exec("UPDATE vmailbox SET quota = ? WHERE id = ?",
+		m.a.mdb.DefaultString("vmailbox.quota"), m.a.id)
 	if err == nil {
 		c, err := res.RowsAffected()
 		if err == nil {
