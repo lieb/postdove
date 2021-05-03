@@ -36,6 +36,8 @@ type Address struct {
 	transport sql.NullInt64
 	rclass    sql.NullString
 	access    sql.NullInt64
+	aliases   int64
+	mboxes    int64
 }
 
 // IsLocal
@@ -50,15 +52,12 @@ func (a *Address) IsLocal() bool {
 
 // IsMailbox
 func (a *Address) IsMailbox() bool {
-	var (
-		cnt int
-		err error
-	)
-	row := a.mdb.db.QueryRow("SELECT COUNT(*) FROM address WHERE id = ?", a.id)
-	if err := row.Scan(&cnt); err == nil {
-		return cnt > 0
-	}
-	panic(fmt.Errorf("Select count() should not fail, %s", err))
+	return a.mboxes > 0
+}
+
+// IsAlias
+func (a *Address) IsAlias() bool {
+	return a.aliases > 0
 }
 
 // InVmailDomain
@@ -128,21 +127,11 @@ func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
 		mdb: mdb,
 	}
 	if ap.domain == "" { // A "local" address
-		qa := `
-SELECT id, localpart, transport, rclass, access FROM address
- WHERE localpart = ? AND domain IS NULL
-`
-		row = mdb.db.QueryRow(qa, ap.lpart)
+		row = mdb.db.QueryRow(qaLocal, ap.lpart)
 		err = row.Scan(
 			&addr.id, &addr.localpart, &addr.transport, &addr.rclass, &addr.access)
 	} else { // A full RFC822 address
-		qa := `
-SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
-       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
- FROM address AS a, domain AS d
- WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
-`
-		row = mdb.db.QueryRow(qa, ap.lpart, ap.domain)
+		row = mdb.db.QueryRow(qaRFC822, ap.lpart, ap.domain)
 		err = row.Scan(
 			&addr.id, &addr.localpart, &addr.transport, &addr.rclass, &addr.access,
 			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
@@ -160,6 +149,24 @@ SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
 		return nil, err
 	}
 }
+
+// It would be nice to have everything in one query but the best we can do is
+// join address and domain. Counting alias and vmailbox references is seriously
+// messy and expensive.
+//
+// query for local (no domain) addresses
+var qaLocal string = `
+SELECT id, localpart, transport, rclass, access FROM address
+ WHERE localpart = ? AND domain IS NULL
+`
+
+// query for full localpart@domain addresses
+var qaRFC822 string = `
+SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
+       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
+ FROM address AS a, domain AS d
+ WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
+`
 
 // LookupAddress
 // Lookup an address without an active transaction
@@ -180,21 +187,11 @@ func (mdb *MailDB) LookupAddress(addr string) (*Address, error) {
 		mdb: mdb,
 	}
 	if ap.domain == "" { // A "local" address
-		qa := `
-SELECT id, localpart, transport, rclass, access FROM address
- WHERE localpart = ? AND domain IS NULL
-`
-		row = mdb.db.QueryRow(qa, ap.lpart)
+		row = mdb.db.QueryRow(qaLocal, ap.lpart)
 		err = row.Scan(
 			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
 	} else { // A full RFC822 address
-		qa := `
-SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
-       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
- FROM address AS a, domain AS d
- WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
-`
-		row = mdb.db.QueryRow(qa, ap.lpart, ap.domain)
+		row = mdb.db.QueryRow(qaRFC822, ap.lpart, ap.domain)
 		err = row.Scan(
 			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access,
 			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
@@ -203,6 +200,14 @@ SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
+		row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
+		if err = row.Scan(&a.aliases); err != nil {
+			return nil, err
+		}
+		row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
+		if err = row.Scan(&a.mboxes); err != nil {
+			return nil, err
+		}
 		a.mdb = mdb
 		if ap.domain != "" {
 			a.d = d
@@ -214,7 +219,7 @@ SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
 }
 
 // GetAddress
-// Lookup an address under and active transaction
+// Lookup an address under an active transaction
 // really a copy of LookupAddress with transaction queries...
 func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
 	var (
@@ -236,21 +241,11 @@ func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
 		mdb: mdb,
 	}
 	if ap.domain == "" { // A "local" address
-		qa := `
-SELECT id, localpart, transport, rclass, access FROM address
- WHERE localpart = ? AND domain IS NULL
-`
-		row = mdb.tx.QueryRow(qa, ap.lpart)
+		row = mdb.tx.QueryRow(qaLocal, ap.lpart)
 		err = row.Scan(
 			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
 	} else { // A full RFC822 address
-		qa := `
-SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
-       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
- FROM address AS a, domain AS d
- WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
-`
-		row = mdb.tx.QueryRow(qa, ap.lpart, ap.domain)
+		row = mdb.tx.QueryRow(qaRFC822, ap.lpart, ap.domain)
 		err = row.Scan(
 			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access,
 			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
@@ -259,6 +254,14 @@ SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
+		row = mdb.tx.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
+		if err = row.Scan(&a.aliases); err != nil {
+			return nil, err
+		}
+		row = mdb.tx.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
+		if err = row.Scan(&a.mboxes); err != nil {
+			return nil, err
+		}
 		a.mdb = mdb
 		if ap.domain != "" {
 			a.d = d
@@ -304,26 +307,34 @@ FROM address WHERE id IS ?
 			return nil, err
 		}
 	}
+	row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", addr.id)
+	if err = row.Scan(&addr.aliases); err != nil {
+		return nil, err
+	}
+	row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", addr.id)
+	if err = row.Scan(&addr.mboxes); err != nil {
+		return nil, err
+	}
+	addr.mdb = mdb
 	return addr, nil
 }
 
 // FindAddress
 func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 	var (
-		err        error
-		ap         *AddressParts
-		q          string
-		rows       *sql.Rows
-		al         []*Address
-		dl         []*Domain
-		addressCnt int
+		err  error
+		ap   *AddressParts
+		q    string
+		rows *sql.Rows
+		al   []*Address
+		dl   []*Domain
 	)
 
 	if ap, err = DecodeRFC822(address); err != nil {
 		return nil, err
 	}
 	q = "SELECT id, localpart, transport, rclass, access FROM address"
-	if ap.domain == "" { // if "*", start with locals
+	if ap.domain == "" { // "*" is for locals only
 		qa := q + " WHERE domain IS NULL"
 		if ap.lpart == "*" {
 			qa += " ORDER BY localpart"
@@ -344,8 +355,16 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 			if err != nil {
 				break
 			}
+			row := mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
+			if err = row.Scan(&a.aliases); err != nil {
+				return nil, err
+			}
+			row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
+			if err = row.Scan(&a.mboxes); err != nil {
+				return nil, err
+			}
+			a.mdb = mdb
 			al = append(al, a)
-			addressCnt++
 		}
 		if e := rows.Close(); e != nil {
 			if err == nil {
@@ -355,11 +374,7 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 		if err != nil {
 			return nil, err
 		}
-	}
-	/*	if address == "*" {
-			ap.domain = "*" // make it all domains too
-		}
-	*/if ap.domain != "" {
+	} else { // must be "*@*" do get all non-locals
 		if dl, err = mdb.FindDomain(ap.domain); err != nil {
 			return nil, err
 		}
@@ -372,23 +387,32 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 				qd := q + " WHERE domain IS ? AND localpart LIKE ? ORDER BY localpart"
 				rows, err = mdb.db.Query(qd, d.Id(), lp)
 			}
-			if err == nil {
-				for rows.Next() {
-					a := &Address{
-						mdb: mdb,
-					}
-					err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
-					if err != nil {
-						break
-					}
-					a.d = d
-					al = append(al, a)
-					addressCnt++
+			if err != nil {
+				break
+			}
+			for rows.Next() {
+				a := &Address{
+					mdb: mdb,
 				}
-				if e := rows.Close(); e != nil {
-					if err == nil {
-						err = e
-					}
+				err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+				if err != nil {
+					break
+				}
+				row := mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
+				if err = row.Scan(&a.aliases); err != nil {
+					return nil, err
+				}
+				row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
+				if err = row.Scan(&a.mboxes); err != nil {
+					return nil, err
+				}
+				a.mdb = mdb
+				a.d = d
+				al = append(al, a)
+			}
+			if e := rows.Close(); e != nil {
+				if err == nil {
+					err = e
 				}
 			}
 			if err != nil {
@@ -396,7 +420,7 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 			}
 		}
 	}
-	if addressCnt == 0 {
+	if err == nil && len(al) == 0 {
 		err = ErrMdbAddressNotFound
 	}
 	return al, err
@@ -520,19 +544,30 @@ func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
 	return nil, err
 }
 
-// deleteAddress
-func (mdb *MailDB) deleteAddress(ap *AddressParts) error {
-	addr, err := mdb.lookupAddress(ap)
-	if err != nil {
+// DeleteAddress
+// does not need a transaction because the cleanup delete
+// to an unreferenced domain is done by a trigger
+func (mdb *MailDB) DeleteAddress(addr string) error {
+	var (
+		err error
+		ap  *AddressParts
+		res sql.Result
+	)
+
+	if ap, err = DecodeRFC822(addr); err != nil {
 		return err
 	}
-	return mdb.deleteAddressByAddr(addr)
-}
-
-// deleteAddressByAddr
-// we consider foreign key on domain is not really an error here. throw other errors
-func (mdb *MailDB) deleteAddressByAddr(addr *Address) error {
-	res, err := mdb.tx.Exec("DELETE FROM address WHERE id = ?", addr.id)
+	if ap.domain == "" {
+		dq := "DELETE FROM address WHERE localpart = ? AND domain iS NULL"
+		res, err = mdb.db.Exec(dq, ap.lpart)
+	} else {
+		dq := `
+DELETE FROM address WHERE id = 
+  (SELECT a.id FROM address a, domain d
+    WHERE a.domain = d.id AND a.localpart = ? AND d.name = ?)
+`
+		res, err = mdb.db.Exec(dq, ap.lpart, ap.domain)
+	}
 	if err != nil {
 		return err
 	} else {

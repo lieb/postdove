@@ -48,46 +48,6 @@ func makeTestDB(dbFile string, schema string) (*MailDB, error) {
 	return mdb, nil
 }
 
-// doAddressInsert
-// these things have to be within transactions
-func doAddressInsert(mdb *MailDB, addr string) (a *Address, err error) {
-	ap, _ := DecodeRFC822(addr)
-	if err = mdb.begin(); err != nil {
-		return
-	}
-	defer mdb.end(err == nil)
-	a, err = mdb.insertAddress(ap)
-	if err != nil {
-		return
-	}
-	return
-}
-
-// doAddressDelete
-func doAddressDelete(mdb *MailDB, addr string) error {
-	var err error
-
-	ap, _ := DecodeRFC822(addr)
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-	err = mdb.deleteAddress(ap)
-	return err
-}
-
-// doAddressDeleteByID
-func doAddressDeleteByID(mdb *MailDB, a *Address) error {
-	var err error
-
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
-	err = mdb.deleteAddressByAddr(a)
-	return err
-}
-
 // countAddresses
 func countAddresses(mdb *MailDB) (aCnt int, dCnt int) {
 	row := mdb.db.QueryRow("SELECT count(*) FROM address")
@@ -122,7 +82,9 @@ func TestDBLoad(t *testing.T) {
 	defer mdb.Close()
 
 	// test basic local address insert
-	a, err := doAddressInsert(mdb, "dmr")
+	mdb.Begin()
+	a, err := mdb.InsertAddress("dmr")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("insert of dmr failed %s", err)
 	} else {
@@ -140,13 +102,17 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// try to insert it again
-	a, err = doAddressInsert(mdb, "dmr")
+	mdb.Begin()
+	a, err = mdb.InsertAddress("dmr")
+	mdb.End(err == nil)
 	if err != nil && err != ErrMdbDupAddress {
 		t.Errorf("duplicate insert of dmr, unexpected error %s", err)
 	}
 
 	// test basic insert. Should have one address row and one domain row
-	a, err = doAddressInsert(mdb, "mary@goof.com")
+	mdb.Begin()
+	a, err = mdb.InsertAddress("mary@goof.com")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("insert of mary@goof.com failed %s", err)
 	} else {
@@ -164,13 +130,17 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// try inserting it again
-	a, err = doAddressInsert(mdb, "mary@goof.com")
+	mdb.Begin()
+	a, err = mdb.InsertAddress("mary@goof.com")
+	mdb.End(err == nil)
 	if err != nil && err != ErrMdbDupAddress {
 		t.Errorf("duplicate insert of mary@goof.com, unexpected error %s", err)
 	}
 
 	// second insert, same domain. should now have 2 address rows and 1 domain
-	a, err = doAddressInsert(mdb, "bill@goof.com")
+	mdb.Begin()
+	a, err = mdb.InsertAddress("bill@goof.com")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("insert of bill@goof.com failed %s", err)
 	} else {
@@ -185,7 +155,9 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// third insert is new domain. should have 4 addresses and 2 domains
-	_, err = doAddressInsert(mdb, "dave@slip.com")
+	mdb.Begin()
+	a, err = mdb.InsertAddress("dave@slip.com")
+	mdb.End(err == nil)
 	if err != nil {
 		t.Errorf("insert of dave@slip.com failed %s", err)
 	} else {
@@ -214,7 +186,7 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// now delete it and check. We should have 3 addresses and 2 domains
-	if err = doAddressDeleteByID(mdb, a); err != nil {
+	if err = mdb.DeleteAddress("dmr"); err != nil {
 		t.Errorf("delete of dmr failed: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -232,7 +204,7 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// now delete it and check. We should have 2 addresses and 2 domains
-	if err = doAddressDeleteByID(mdb, a); err != nil {
+	if err = mdb.DeleteAddress("mary@goof.com"); err != nil {
 		t.Errorf("delete of mary@goof.com failed: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -241,7 +213,7 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// delete dave@slip.com and see if his domain also gets deleted
-	if err = doAddressDelete(mdb, "dave@slip.com"); err != nil {
+	if err = mdb.DeleteAddress("dave@slip.com"); err != nil {
 		t.Errorf("delete of dave@slip.com failed: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -250,7 +222,7 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// delete a bogus address in a legit domain. We should see an error
-	if err = doAddressDelete(mdb, "foo@goof.com"); err != nil {
+	if err = mdb.DeleteAddress("foo@goof.com"); err != nil {
 		if err != ErrMdbAddressNotFound {
 			t.Errorf("delete of foo@goof.com failed: %s", err)
 		}
@@ -263,7 +235,7 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// delete a bogus address in a bogus domain
-	if err = doAddressDelete(mdb, "foo@baz"); err != nil {
+	if err = mdb.DeleteAddress("foo@baz"); err != nil {
 		if err != ErrMdbAddressNotFound {
 			t.Errorf("delete of foo@baz failed: %s", err)
 		}
@@ -276,7 +248,7 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// now delete bill@goof.com. That should be it. no more rows
-	if err = doAddressDelete(mdb, "bill@goof.com"); err != nil {
+	if err = mdb.DeleteAddress("bill@goof.com"); err != nil {
 		t.Errorf("delete of bill@goof.com failed: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
