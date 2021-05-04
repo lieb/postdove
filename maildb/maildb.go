@@ -59,6 +59,7 @@ var (
 	ErrMdbMboxNotMboxDomain = errors.New("Mailbox must be in a vmailbox domain")
 	ErrMdbNotMbox           = errors.New("address is not a mailbox")
 	ErrMdbIsAlias           = errors.New("New mailbox already an alias")
+	ErrMdbIsMbox            = errors.New("New alias already a mailbox")
 	ErrMdbMboxBadPw         = errors.New("Unrecognized password type")
 	ErrMdbBadName           = errors.New("Not a correct name")
 	ErrMdbBadClass          = errors.New("Unknown domain class")
