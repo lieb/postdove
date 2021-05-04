@@ -207,10 +207,10 @@ func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 	}
 
 	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
+	mdb.Begin()
+	defer func(e *error) {
+		mdb.End(*e == nil)
+	}(&err)
 
 	if aliasAddr, err = mdb.lookupAddress(ap); err != nil {
 		if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
@@ -303,10 +303,10 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 	}
 
 	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
+	mdb.Begin()
+	defer func(e *error) {
+		mdb.End(*e == nil)
+	}(&err)
 
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
 		return err
@@ -354,10 +354,10 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	}
 
 	// Enter a transaction for everything else
-	if err = mdb.begin(); err != nil {
-		return err
-	}
-	defer mdb.end(err == nil)
+	mdb.Begin()
+	defer func(e *error) {
+		mdb.End(*e == nil)
+	}(&err)
 
 	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
 		return err
