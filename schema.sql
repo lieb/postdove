@@ -205,6 +205,21 @@ CREATE TABLE "VMailbox" (
        enable INTEGER NOT NULL DEFAULT 1, -- bool to disable imap+lmtp
        CONSTRAINT vmbox_addr FOREIGN KEY(id) REFERENCES Address(id));
 
+-- An address can either be an alias or a mailbox but not both. Just imagine
+-- the "both" case. The alias half would re-direct postfix off somewhere else
+-- and orphan the mailbox. If someone wants to do such a a re-direct, there are other
+-- ways to do that. This trigger and its matching one for vmailbox checks first
+-- to see of the other is already in existence...
+DROP TRIGGER IF EXISTS alias_insert_mailbox_check;
+CREATE TRIGGER alias_insert_mailbox_check BEFORE INSERT ON alias
+ WHEN (SELECT count(*) FROM vmailbox WHERE id = NEW.address) > 0
+  BEGIN SELECT RAISE(FAIL, 'New alias already a mailbox'); END;
+
+DROP TRIGGER IF EXISTS mailbox_insert_alias_check;
+CREATE TRIGGER mailbox_insert_alias_check BEFORE INSERT ON vmailbox
+ WHEN (SELECT count(*) FROM alias WHERE address = NEW.id) > 0
+  BEGIN SELECT RAISE(FAIL, 'New mailbox already an alias'); END;
+
 -- Create trigger to extend address constraint to vmailbox which shares its id
 -- We return an error string naming the app err
 DROP TRIGGER IF EXISTS before_del_mbox;
