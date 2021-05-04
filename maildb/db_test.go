@@ -169,15 +169,13 @@ func TestDBLoad(t *testing.T) {
 	}
 
 	// lookup a bogus address at legit domain.
-	ap, _ := DecodeRFC822("foo@goof.com")
-	a, err = mdb.lookupAddress(ap)
+	a, err = mdb.LookupAddress("foo@goof.com")
 	if err != nil && err != ErrMdbAddressNotFound {
 		t.Errorf("lookup of foo@goof.com failed unexpectedly: %s", err)
 	}
 
 	// now look up a legit...
-	ap, _ = DecodeRFC822("dmr")
-	a, err = mdb.lookupAddress(ap)
+	a, err = mdb.LookupAddress("dmr")
 	if err != nil {
 		t.Errorf("lookup of dmr failed: %s", err)
 	}
@@ -194,8 +192,7 @@ func TestDBLoad(t *testing.T) {
 		t.Errorf("delete of dmr: expected 3 addresses, 2 domains, got %d, %d", aCount, dCount)
 	}
 
-	ap, _ = DecodeRFC822("mary@goof.com")
-	a, err = mdb.lookupAddress(ap)
+	a, err = mdb.LookupAddress("mary@goof.com")
 	if err != nil {
 		t.Errorf("lookup of mary@goof.com failed: %s", err)
 	}
