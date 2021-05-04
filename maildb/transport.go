@@ -297,7 +297,7 @@ func (mdb *MailDB) AttachTransport(addr string, t string) error {
 			a *Address
 		)
 
-		if a, err = mdb.lookupAddress(ap); err != nil {
+		if a, err = mdb.GetAddress(addr); err != nil {
 			return fmt.Errorf("AttachTransport: %s", err)
 		}
 		_, err = mdb.tx.Exec("UPDATE address SET transport = ? WHERE id = ?",
