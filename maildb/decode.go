@@ -98,6 +98,16 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 	}
 }
 
+// IsPipe
+func (ap *AddressParts) IsPipe() bool {
+	return ap.lpart == "" && ap.domain == ""
+}
+
+// IsLocal
+func (ap *AddressParts) IsLocal() bool {
+	return ap.lpart != "" && ap.domain == ""
+}
+
 func (ap *AddressParts) String() string {
 	var (
 		line strings.Builder
