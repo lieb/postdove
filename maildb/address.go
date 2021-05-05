@@ -36,8 +36,6 @@ type Address struct {
 	transport sql.NullInt64
 	rclass    sql.NullString
 	access    sql.NullInt64
-	aliases   int64
-	mboxes    int64
 }
 
 // IsLocal
@@ -48,16 +46,6 @@ func (a *Address) IsLocal() bool {
 	} else {
 		return false
 	}
-}
-
-// IsMailbox
-func (a *Address) IsMailbox() bool {
-	return a.mboxes > 0
-}
-
-// IsAlias
-func (a *Address) IsAlias() bool {
-	return a.aliases > 0
 }
 
 // InVmailDomain
@@ -111,45 +99,6 @@ func (a *Address) dump() string {
 	return line.String()
 }
 
-// lookupAddress
-// helper to find 'lpart@domain' and return an address id.
-// return nil, err for bad stuff
-func (mdb *MailDB) lookupAddress(ap *AddressParts) (*Address, error) {
-	var (
-		row *sql.Row
-		err error
-	)
-
-	addr := &Address{
-		mdb: mdb,
-	}
-	d := &Domain{
-		mdb: mdb,
-	}
-	if ap.domain == "" { // A "local" address
-		row = mdb.db.QueryRow(qaLocal, ap.lpart)
-		err = row.Scan(
-			&addr.id, &addr.localpart, &addr.transport, &addr.rclass, &addr.access)
-	} else { // A full RFC822 address
-		row = mdb.db.QueryRow(qaRFC822, ap.lpart, ap.domain)
-		err = row.Scan(
-			&addr.id, &addr.localpart, &addr.transport, &addr.rclass, &addr.access,
-			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
-	}
-	switch err {
-	case sql.ErrNoRows:
-		return nil, ErrMdbAddressNotFound
-	case nil:
-		addr.mdb = mdb
-		if ap.domain != "" {
-			addr.d = d
-		}
-		return addr, nil
-	default:
-		return nil, err
-	}
-}
-
 // It would be nice to have everything in one query but the best we can do is
 // join address and domain. Counting alias and vmailbox references is seriously
 // messy and expensive.
@@ -200,14 +149,6 @@ func (mdb *MailDB) LookupAddress(addr string) (*Address, error) {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
-		row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
-		if err = row.Scan(&a.aliases); err != nil {
-			return nil, err
-		}
-		row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
-		if err = row.Scan(&a.mboxes); err != nil {
-			return nil, err
-		}
 		a.mdb = mdb
 		if ap.domain != "" {
 			a.d = d
@@ -254,14 +195,6 @@ func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
-		row = mdb.tx.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
-		if err = row.Scan(&a.aliases); err != nil {
-			return nil, err
-		}
-		row = mdb.tx.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
-		if err = row.Scan(&a.mboxes); err != nil {
-			return nil, err
-		}
 		a.mdb = mdb
 		if ap.domain != "" {
 			a.d = d
@@ -319,14 +252,6 @@ FROM address WHERE id IS ?
 			return nil, err
 		}
 	}
-	row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", addr.id)
-	if err = row.Scan(&addr.aliases); err != nil {
-		return nil, err
-	}
-	row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", addr.id)
-	if err = row.Scan(&addr.mboxes); err != nil {
-		return nil, err
-	}
 	addr.mdb = mdb
 	return addr, nil
 }
@@ -367,14 +292,6 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 			if err != nil {
 				break
 			}
-			row := mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
-			if err = row.Scan(&a.aliases); err != nil {
-				return nil, err
-			}
-			row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
-			if err = row.Scan(&a.mboxes); err != nil {
-				return nil, err
-			}
 			a.mdb = mdb
 			al = append(al, a)
 		}
@@ -409,14 +326,6 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 				err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
 				if err != nil {
 					break
-				}
-				row := mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", a.id)
-				if err = row.Scan(&a.aliases); err != nil {
-					return nil, err
-				}
-				row = mdb.db.QueryRow("SELECT COUNT(*) FROM vmailbox WHERE id = ?", a.id)
-				if err = row.Scan(&a.mboxes); err != nil {
-					return nil, err
 				}
 				a.mdb = mdb
 				a.d = d
