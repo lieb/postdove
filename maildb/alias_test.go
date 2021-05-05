@@ -156,11 +156,24 @@ func TestAliasOps(t *testing.T) {
 	recips = []string{"/drain.txt"}
 	err = mdb.MakeAlias("pipe@plumbing", recips)
 	if err != nil {
-		if err != ErrMdbAddrNoAddr {
+		if err != ErrMdbAddressTarget {
 			t.Errorf("MakeAlias: pipe@plumbing: %s", err)
 		}
 	} else {
 		t.Errorf("MakeAlias: inserted pipe@plumbing without errors")
+	}
+	aCount, dCount = countAddresses(mdb)
+	if aCount != 4 || dCount != 1 {
+		t.Errorf("pipe@plumbing: expected 4 addr, 1 domain, got %d, %d",
+			aCount, dCount)
+	}
+	al_list, err = mdb.LookupAlias("pipe@plumbing")
+	if err == nil {
+		t.Errorf("Lookup of pipe@plumbing should have failed")
+	} else {
+		if err != ErrMdbDomainNotFound {
+			t.Errorf("Lookup of pipe@plumbing: unexpected error %s", err)
+		}
 	}
 
 	// multiple recips in same call
