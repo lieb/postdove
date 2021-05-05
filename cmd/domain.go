@@ -24,6 +24,7 @@ import (
 )
 
 var (
+	dClass string
 	vUid   int
 	vGid   int
 	rClass string
@@ -49,11 +50,11 @@ var exportDomain = &cobra.Command{
 
 // addDomain do add of a domains file
 var addDomain = &cobra.Command{
-	Use:   "domain name class",
+	Use:   "domain name",
 	Short: "Add an domain into the database",
 	Long: `Add an domain into the database. The name is the FQDN for the domain.
-The class defines what the domain is used for, i.e. for virtual mailboxes or local/my domain.`,
-	Args: cobra.MinimumNArgs(1), // domain if no second, use DB default
+The optional class flag defines what the domain is used for, i.e. for virtual mailboxes or local/my domain.`,
+	Args: cobra.ExactArgs(1), // domain if no second, use DB default
 	RunE: domainAdd,
 }
 
@@ -91,8 +92,18 @@ func init() {
 	importCmd.AddCommand(importDomain)
 	exportCmd.AddCommand(exportDomain)
 	addCmd.AddCommand(addDomain)
+	addDomain.Flags().StringVarP(&dClass, "class", "c", "",
+		"Domain class (internet, local, relay, virtual, vmailbox) for this domain")
+	addDomain.Flags().IntVarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
+		"Virtual user id for this domain")
+	addDomain.Flags().IntVarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
+		"Virtual group id for this domain")
+	addDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
+		"Restriction class for this domain")
 	deleteCmd.AddCommand(deleteDomain)
 	editCmd.AddCommand(editDomain)
+	editDomain.Flags().StringVarP(&dClass, "class", "c", "",
+		"Domain class (internet, local, relay, virtual, vmailbox) for this domain")
 	editDomain.Flags().IntVarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
 		"Virtual user id for this domain")
 	editDomain.Flags().IntVarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
@@ -155,22 +166,26 @@ func domainExport(cmd *cobra.Command, args []string) error {
 // domainAdd the domain and its class
 func domainAdd(cmd *cobra.Command, args []string) error {
 	var (
-		class string = ""
-		err   error
+		d   *maildb.Domain
+		err error
 	)
 
-	switch len(args) { // arg[0] is the domain to be added
-	case 1: // take DB field default
-		class = ""
-	case 2: // specify a class
-		class = args[1]
-	default:
-		return fmt.Errorf("Only one class field argument allowed")
-	}
 	mdb.Begin()
 	defer mdb.End(&err)
 
-	_, err = mdb.InsertDomain(args[0], class)
+	d, err = mdb.InsertDomain(args[0], "")
+	if err == nil && cmd.Flags().Changed("class") {
+		err = d.SetClass(dClass)
+	}
+	if err == nil && cmd.Flags().Changed("uid") {
+		err = d.SetVUid(vUid)
+	}
+	if err == nil && cmd.Flags().Changed("gid") {
+		err = d.SetVGid(vGid)
+	}
+	if err == nil && cmd.Flags().Changed("rclass") {
+		err = d.SetRclass(rClass)
+	}
 	return err
 }
 
@@ -190,6 +205,9 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 	defer mdb.End(&err)
 
 	d, err = mdb.GetDomain(args[0])
+	if err == nil && cmd.Flags().Changed("class") {
+		err = d.SetClass(dClass)
+	}
 	if err == nil && cmd.Flags().Changed("uid") {
 		err = d.SetVUid(vUid)
 	}

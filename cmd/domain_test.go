@@ -84,11 +84,11 @@ func Test_Domain(t *testing.T) {
 	}
 
 	// try to add home.net with too many args
-	args = []string{"-d", dbfile, "add", "domain", "home.net", "virtual", "more_bits"} // using default class
+	args = []string{"-d", dbfile, "add", "domain", "home.net", "-c", "virtual", "more_bits"} // using default class
 	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Bad add of home.net: Should have failed")
-	} else if !strings.Contains(err.Error(), "Only one class field") {
+	} else if !strings.Contains(err.Error(), "accepts 1 arg") {
 		t.Errorf("Bad add of home.net: Unexpected error %s", err)
 	}
 	if out == "" {
@@ -99,7 +99,7 @@ func Test_Domain(t *testing.T) {
 	}
 
 	// Now do it with correct args a "virtual" domain (for mailboxes)
-	args = []string{"-d", dbfile, "add", "domain", "home.net", "virtual"} // using default class
+	args = []string{"-d", dbfile, "add", "domain", "home.net", "-c", "virtual"} // using default class
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Add home.net: Unexpected error, %s", err)

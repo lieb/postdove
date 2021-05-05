@@ -58,18 +58,18 @@ func TestVMailboxCmd(t *testing.T) {
 	if errout != "" {
 		t.Errorf("Create DB: did not expect error output, got %s", errout)
 	}
-	// Add a vmail domain
-	args = []string{"-d", dbfile, "add", "domain", "pobox.org", "vmailbox"} // using default class
-	out, errout, err = doTest(rootCmd, "", args)
-	if err != nil {
-		t.Errorf("Add pobox.org: Unexpected error, %s", err)
-	}
-	if out != "" {
-		t.Errorf("Add pobox.org: did not expect output, got %s", out)
-	}
-	if errout != "" {
-		t.Errorf("Add pobox.org: did not expect error output, got %s", errout)
-	}
+	// DANGER Will Robinson!!
+	// If you look at the commit history this used to be below following the add
+	// of pobox.org. What happened was the state of the '-c' flag and the class
+	// string inside the domain commands pkg are program _globals_. Hence, their state
+	// carries across executes of the root. Since this first one has no "add" flags,
+	// the flag and var states are still virgins in this order. Not so originally.
+	// There is some chatter on the github issues about "factories" etc. that seemed to
+	// resolved in Sept 2020. I started this work in Nov 2020 so I should have gotten
+	// the new code. Apparently not. I looked at the release notes but I could see
+	// nothing that indicates how to use it (assuming there is an api change)
+	// This should not be an issue for actual use since only one command is run per
+	// program execution unlike here in testing. YMMV
 
 	// Add an ordinary domain
 	args = []string{"-d", dbfile, "add", "domain", "pobox.net"} // using default class
@@ -82,6 +82,19 @@ func TestVMailboxCmd(t *testing.T) {
 	}
 	if errout != "" {
 		t.Errorf("Add pobox.net: did not expect error output, got %s", errout)
+	}
+
+	// Add a vmail domain
+	args = []string{"-d", dbfile, "add", "domain", "pobox.org", "-c", "vmailbox"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add pobox.org: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add pobox.org: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add pobox.org: did not expect error output, got %s", errout)
 	}
 
 	// Try to create a mailbox in a non- domain
@@ -123,7 +136,6 @@ func TestVMailboxCmd(t *testing.T) {
 		t.Errorf("Add jeff@pobox.org: Unexpected error, %s", err)
 	}
 	if out != expectedOut {
-		fmt.Printf("jeff@pobox.org: len out=%d, len expected=%d\n", len(out), len(expectedOut))
 		t.Errorf("Add jeff@pobox.org: did not expect output, got %s", out)
 	}
 	if errout != "" {
@@ -152,7 +164,6 @@ func TestVMailboxCmd(t *testing.T) {
 		t.Errorf("Edit jeff@pobox.org: Unexpected error, %s", err)
 	}
 	if out != expectedOut {
-		fmt.Printf("jeff@pobox.org: len out=%d, len expected=%d\n", len(out), len(expectedOut))
 		t.Errorf("Edit jeff@pobox.org: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -181,7 +192,6 @@ func TestVMailboxCmd(t *testing.T) {
 		t.Errorf("Edit2 jeff@pobox.org: Unexpected error, %s", err)
 	}
 	if out != expectedOut {
-		fmt.Printf("jeff@pobox.org: len out=%d, len expected=%d\n", len(out), len(expectedOut))
 		t.Errorf("Edit2 jeff@pobox.org: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -227,7 +237,6 @@ dave@pobox.org:{sha256}HJJJYGB:56:83::dave::userdb_quota_rule=*:bytes=40G mbox_e
 		t.Errorf("Import dave@pobox.org: Unexpected error, %s", err)
 	}
 	if out != expectedOut {
-		fmt.Printf("dave@pobox.org: len out=%d, len expected=%d\n", len(out), len(expectedOut))
 		t.Errorf("import dave@pobox.org: did not get expected output, got %s", out)
 	}
 	if errout != "" {
