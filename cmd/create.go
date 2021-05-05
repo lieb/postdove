@@ -33,10 +33,11 @@ func cmdCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	mdb.Begin()
+	defer mdb.End(&err)
+
 	_, err = mdb.InsertDomain("localhost", "local")
 	if err == nil {
 		_, err = mdb.InsertDomain("localhost.localdomain", "local")
 	}
-	mdb.End(err == nil)
 	return nil
 }

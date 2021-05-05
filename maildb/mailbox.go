@@ -638,9 +638,7 @@ func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 
 	// Enter a transaction for everything else
 	mdb.Begin()
-	defer func(e *error) {
-		mdb.End(*e == nil)
-	}(&err)
+	defer mdb.End(&err)
 
 	vm, err := mdb.GetVMailbox(vaddr)
 	if err != nil {

@@ -65,7 +65,7 @@ func TestDomain(t *testing.T) {
 	// Try to insert a domain
 	mdb.Begin()
 	d, err = mdb.InsertDomain("foo", "")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("Insert foo: %s", err)
 		return // no need to go further this early
@@ -93,7 +93,7 @@ func TestDomain(t *testing.T) {
 	// Try some bad args...
 	mdb.Begin()
 	d, err = mdb.InsertDomain("", "")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Insert \"\" should have failed")
 	} else if err != ErrMdbBadName {
@@ -101,7 +101,7 @@ func TestDomain(t *testing.T) {
 	}
 	mdb.Begin()
 	d, err = mdb.InsertDomain(";bogus", "")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Insert \";bogus\" should have failed")
 	} else if err != ErrMdbBadName {
@@ -110,7 +110,7 @@ func TestDomain(t *testing.T) {
 
 	mdb.Begin()
 	d, err = mdb.InsertDomain("baz", "jazz")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Insert \"jazz\" should have failed")
 	} else if err != ErrMdbBadClass {
@@ -133,8 +133,9 @@ func TestDomain(t *testing.T) {
 
 	// Set some of the fields, first get the domain for transactions
 	mdb.Begin()
-	if d, err = mdb.GetDomain("foo"); err != nil {
-		mdb.End(false)
+	d, err = mdb.GetDomain("foo")
+	if err != nil {
+		mdb.End(&err)
 		t.Errorf("Get foo: %s", err)
 	} else {
 		if err = d.SetVUid(53); err != nil {
@@ -146,7 +147,7 @@ func TestDomain(t *testing.T) {
 		if err = d.SetRclass("spam"); err != nil {
 			t.Errorf("SetRclassid foo, %s", err)
 		}
-		mdb.End(err == nil)
+		mdb.End(&err)
 		// now check it
 		if dn, err := mdb.LookupDomain("foo"); err != nil {
 			t.Errorf("Lookup foo after sets, %s", err)
@@ -228,7 +229,7 @@ func TestDomain(t *testing.T) {
 			break
 		}
 	}
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err == nil { // only check if inserts passed
 		for q, l := range dlists {
 			dl, err := mdb.FindDomain(q)

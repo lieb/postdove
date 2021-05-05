@@ -57,7 +57,7 @@ func TestMailbox(t *testing.T) {
 	// we need a domain before we can add mailboxes
 	mdb.Begin()
 	_, err = mdb.InsertDomain("skywalker", "vmailbox")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("Insert of skywalker failed, %s", err)
 		return
@@ -65,7 +65,7 @@ func TestMailbox(t *testing.T) {
 
 	mdb.Begin()
 	_, err = mdb.InsertDomain("nowhere", "relay") // fodder for busted mailboxes
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("Insert of nowhere failed, %s", err)
 		return
@@ -74,7 +74,7 @@ func TestMailbox(t *testing.T) {
 	// See if we can create a mailbox in nowhere
 	mdb.Begin()
 	mb, err = mdb.InsertVMailbox("lost@nowhere")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Add of lost@nowhere should have failed")
 	} else if err != ErrMdbMboxNotMboxDomain {
@@ -83,7 +83,7 @@ func TestMailbox(t *testing.T) {
 	// see if we can add a user
 	mdb.Begin()
 	mb, err = mdb.InsertVMailbox("luke@skywalker")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("luke@skywalker: %s", err)
 		return // no sense continuing if we can do this...
@@ -120,7 +120,7 @@ func TestMailbox(t *testing.T) {
 			}
 		}
 	}
-	mdb.End(err == nil)
+	mdb.End(&err)
 	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
 		t.Errorf("luke@skywalker after disable, %s", err)
@@ -141,7 +141,7 @@ func TestMailbox(t *testing.T) {
 			}
 		}
 	}
-	mdb.End(err == nil)
+	mdb.End(&err)
 	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
 		t.Errorf("lookup luke@skywalker after enable, %s", err)
@@ -160,7 +160,7 @@ func TestMailbox(t *testing.T) {
 			t.Errorf("Set password for luke@skywalker failed, %s", err)
 		}
 	}
-	mdb.End(err == nil)
+	mdb.End(&err)
 	// See if it changes
 	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {
@@ -184,7 +184,7 @@ func TestMailbox(t *testing.T) {
 			}
 		}
 	}
-	mdb.End(err == nil)
+	mdb.End(&err)
 	// See if it changed
 	mb, err = mdb.LookupVMailbox("luke@skywalker")
 	if err != nil {

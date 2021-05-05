@@ -277,31 +277,23 @@ func (mdb *MailDB) LoadSchema(schema string) error {
 }
 
 // Begin
-func (mdb *MailDB) Begin() error {
-	return mdb.begin()
-}
-
-// begin
-func (mdb *MailDB) begin() error {
+// If a begin() goes bad, we are in serious trouble. Just crash
+func (mdb *MailDB) Begin() {
 	if tx, err := mdb.db.Begin(); err != nil {
-		return fmt.Errorf("begin(): failed %s", err)
+		panic(fmt.Errorf("begin(): failed %s", err))
 	} else {
 		mdb.tx = tx
-		return nil
 	}
 }
 
 // End
-func (mdb *MailDB) End(makeItSo bool) {
-	mdb.end(makeItSo)
-}
-
-// end
-func (mdb *MailDB) end(makeItSo bool) {
+// This is deferred so pass a reference to the error var
+// Commit on no errors, rollback otherwise
+func (mdb *MailDB) End(err *error) {
 	if mdb.tx == nil {
 		panic("End(): not in a transaction")
 	}
-	if makeItSo {
+	if *err == nil {
 		if err := mdb.tx.Commit(); err != nil {
 			panic(fmt.Errorf("end(): commit, %s", err)) // we are really screwed
 		}

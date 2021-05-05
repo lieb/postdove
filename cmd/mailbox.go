@@ -149,8 +149,9 @@ func mailboxImport(cmd *cobra.Command, args []string) error {
 	var err error
 
 	mdb.Begin()
+	defer mdb.End(&err)
+
 	err = procImport(cmd, PWFILE, procMailbox)
-	mdb.End(err == nil)
 	return err
 }
 
@@ -285,6 +286,8 @@ func mailboxAdd(cmd *cobra.Command, args []string) error {
 	)
 
 	mdb.Begin()
+	defer mdb.End(&err)
+
 	mb, err = mdb.InsertVMailbox(args[0])
 	// use flags to add stuff
 	if err == nil && cmd.Flags().Changed("type") {
@@ -318,7 +321,6 @@ func mailboxAdd(cmd *cobra.Command, args []string) error {
 	if err == nil && cmd.Flags().Changed("no-enable") {
 		err = mb.Disable()
 	}
-	mdb.End(err == nil)
 	return err
 }
 
@@ -335,6 +337,8 @@ func mailboxEdit(cmd *cobra.Command, args []string) error {
 	)
 
 	mdb.Begin()
+	defer mdb.End(&err)
+
 	mb, err = mdb.GetVMailbox(args[0])
 	// use flags to add stuff
 	if err == nil && cmd.Flags().Changed("type") {
@@ -384,7 +388,6 @@ func mailboxEdit(cmd *cobra.Command, args []string) error {
 			err = mb.Disable()
 		}
 	}
-	mdb.End(err == nil)
 	return err
 }
 

@@ -198,9 +198,7 @@ func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 
 	// Enter a transaction for everything else
 	mdb.Begin()
-	defer func(e *error) {
-		mdb.End(*e == nil)
-	}(&err)
+	defer mdb.End(&err)
 
 	if aliasAddr, err = mdb.GetOrInsAddress(alias); err != nil {
 		return err
@@ -259,9 +257,7 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 
 	// Enter a transaction for everything else
 	mdb.Begin()
-	defer func(e *error) {
-		mdb.End(*e == nil)
-	}(&err)
+	defer mdb.End(&err)
 
 	if aliasAddr, err = mdb.GetAddress(alias); err != nil {
 		return err
@@ -299,9 +295,7 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 
 	// Enter a transaction for everything else
 	mdb.Begin()
-	defer func(e *error) {
-		mdb.End(*e == nil)
-	}(&err)
+	defer mdb.End(&err)
 
 	if aliasAddr, err = mdb.GetAddress(alias); err != nil {
 		return err

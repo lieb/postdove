@@ -84,7 +84,7 @@ func TestDBLoad(t *testing.T) {
 	// test basic local address insert
 	mdb.Begin()
 	a, err := mdb.InsertAddress("dmr")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("insert of dmr failed %s", err)
 	} else {
@@ -104,7 +104,7 @@ func TestDBLoad(t *testing.T) {
 	// try to insert it again
 	mdb.Begin()
 	a, err = mdb.InsertAddress("dmr")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil && err != ErrMdbDupAddress {
 		t.Errorf("duplicate insert of dmr, unexpected error %s", err)
 	}
@@ -112,7 +112,7 @@ func TestDBLoad(t *testing.T) {
 	// test basic insert. Should have one address row and one domain row
 	mdb.Begin()
 	a, err = mdb.InsertAddress("mary@goof.com")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("insert of mary@goof.com failed %s", err)
 	} else {
@@ -132,7 +132,7 @@ func TestDBLoad(t *testing.T) {
 	// try inserting it again
 	mdb.Begin()
 	a, err = mdb.InsertAddress("mary@goof.com")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil && err != ErrMdbDupAddress {
 		t.Errorf("duplicate insert of mary@goof.com, unexpected error %s", err)
 	}
@@ -140,7 +140,7 @@ func TestDBLoad(t *testing.T) {
 	// second insert, same domain. should now have 2 address rows and 1 domain
 	mdb.Begin()
 	a, err = mdb.InsertAddress("bill@goof.com")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("insert of bill@goof.com failed %s", err)
 	} else {
@@ -157,7 +157,7 @@ func TestDBLoad(t *testing.T) {
 	// third insert is new domain. should have 4 addresses and 2 domains
 	mdb.Begin()
 	a, err = mdb.InsertAddress("dave@slip.com")
-	mdb.End(err == nil)
+	mdb.End(&err)
 	if err != nil {
 		t.Errorf("insert of dave@slip.com failed %s", err)
 	} else {

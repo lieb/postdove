@@ -107,8 +107,9 @@ func domainImport(cmd *cobra.Command, args []string) error {
 	var err error
 
 	mdb.Begin()
+	defer mdb.End(&err)
+
 	err = procImport(cmd, SIMPLE, procDomain)
-	mdb.End(err == nil)
 	return err
 }
 
@@ -153,7 +154,10 @@ func domainExport(cmd *cobra.Command, args []string) error {
 
 // domainAdd the domain and its class
 func domainAdd(cmd *cobra.Command, args []string) error {
-	var class string = ""
+	var (
+		class string = ""
+		err   error
+	)
 
 	switch len(args) { // arg[0] is the domain to be added
 	case 1: // take DB field default
@@ -164,8 +168,9 @@ func domainAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Only one class field argument allowed")
 	}
 	mdb.Begin()
-	_, err := mdb.InsertDomain(args[0], class)
-	mdb.End(err == nil)
+	defer mdb.End(&err)
+
+	_, err = mdb.InsertDomain(args[0], class)
 	return err
 }
 
@@ -182,6 +187,8 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 	)
 
 	mdb.Begin()
+	defer mdb.End(&err)
+
 	d, err = mdb.GetDomain(args[0])
 	if err == nil && cmd.Flags().Changed("uid") {
 		err = d.SetVUid(vUid)
@@ -192,7 +199,6 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 	if err == nil && cmd.Flags().Changed("rclass") {
 		err = d.SetRclass(rClass)
 	}
-	mdb.End(err == nil)
 	return err
 }
 
