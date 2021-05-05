@@ -272,6 +272,18 @@ func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
 	}
 }
 
+// GetOrInsAddress get the address and if not found, insert it.
+// Make this common pattern a function on its own. Transaction required
+func (mdb *MailDB) GetOrInsAddress(addr string) (*Address, error) {
+	a, err := mdb.GetAddress(addr)
+	if err != nil {
+		if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
+			a, err = mdb.InsertAddress(addr)
+		}
+	}
+	return a, err
+}
+
 // lookupAddressByID
 func (mdb *MailDB) lookupAddressByID(addrID int64) (*Address, error) {
 	var (
