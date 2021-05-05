@@ -60,6 +60,14 @@ var domainClass = []string{
 	vmailbox: "vmailbox",
 }
 
+var className = map[string]Class{
+	"internet": internet,
+	"local":    local,
+	"relay":    relay,
+	"virtual":  virtual,
+	"vmailbox": vmailbox,
+}
+
 // Id
 func (d *Domain) Id() int64 {
 	return d.id
@@ -321,27 +329,17 @@ func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
 		dclass Class
 		res    sql.Result
 		err    error
+		ok     bool
 	)
 
 	if name == "" || strings.ContainsAny(name, "\n\r\t\f{}()[];\"") ||
 		strings.Contains(name, "..") { // '..' means an empty sub-domain. not allowed
 		return nil, ErrMdbBadName
 	}
-	switch strings.ToLower(class) {
-	case "":
-		dclass = internet
-	case "internet":
-		dclass = internet
-	case "local":
-		dclass = local
-	case "relay":
-		dclass = relay
-	case "virtual":
-		dclass = virtual
-	case "vmailbox":
-		dclass = vmailbox
-	default:
-		return nil, ErrMdbBadClass
+	if class != "" {
+		if dclass, ok = className[strings.ToLower(class)]; !ok {
+			return nil, ErrMdbBadClass
+		}
 	}
 
 	if mdb.tx == nil {
@@ -401,6 +399,35 @@ func (mdb *MailDB) GetDomain(name string) (*Domain, error) {
 	default:
 		return nil, err
 	}
+}
+
+// SetClass
+func (d *Domain) SetClass(class string) error {
+	var (
+		dclass Class
+		err    error
+		ok     bool
+	)
+
+	if class == "" {
+		dclass = Class(d.mdb.DefaultInt("domain.class"))
+	} else {
+		if dclass, ok = className[strings.ToLower(class)]; !ok {
+			return ErrMdbBadClass
+		}
+	}
+	res, err := d.mdb.tx.Exec("UPDATE domain SET class = ? WHERE id = ?", dclass, d.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				d.class = dclass
+			} else {
+				err = ErrMdbDomainNotFound
+			}
+		}
+	}
+	return err
 }
 
 // SetTransport
