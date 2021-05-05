@@ -185,25 +185,15 @@ func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 	var (
 		err       error
 		ap        *AddressParts
-		rp        *AddressParts
-		rp_args   []*AddressParts
 		aliasAddr *Address
 	)
 
 	if len(recipients) < 1 {
 		return ErrMdbNoRecipients
 	}
-	if ap, err = DecodeRFC822(alias); err != nil {
+	ap, err = DecodeRFC822(alias)
+	if err != nil {
 		return err
-	}
-	for _, r := range recipients {
-		if rp, err = DecodeTarget(r); err != nil {
-			return err
-		}
-		if ap.domain != "" && rp.lpart == "" { // a virtual alias cannot have a pipe target
-			return ErrMdbAddrNoAddr
-		}
-		rp_args = append(rp_args, rp)
 	}
 
 	// Enter a transaction for everything else
@@ -212,95 +202,60 @@ func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 		mdb.End(*e == nil)
 	}(&err)
 
-	if aliasAddr, err = mdb.lookupAddress(ap); err != nil {
-		if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
-			if aliasAddr, err = mdb.insertAddress(ap); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
+	if aliasAddr, err = mdb.GetOrInsAddress(alias); err != nil {
+		return err
 	}
+
 	// We now have the alias address part, either brand new or an existing
 	// Now cycle through the recipient list and stuff them in
-	for _, rp = range rp_args {
+	for _, r := range recipients {
 		var (
+			rp      *AddressParts
 			rAddr   *Address
 			recipID sql.NullInt64
 			ext     sql.NullString
 		)
+
+		if rp, err = DecodeTarget(r); err != nil {
+			break
+		}
+		if !ap.IsLocal() && rp.IsPipe() { // a virtual alias cannot have a pipe target
+			err = ErrMdbAddressTarget
+			break
+		}
 		if rp.extension != "" {
 			ext.Valid = true
 			ext.String = rp.extension
 		} else {
 			ext.Valid = false
 		}
-		if rp.lpart != "" { // we have a foo@baz address
-			if rAddr, err = mdb.lookupAddress(rp); err != nil {
-				if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
-					if rAddr, err = mdb.insertAddress(rp); err != nil {
-						return err
-					}
-				} else {
-					return err
-				}
+		if !rp.IsPipe() { // we have a foo@baz address
+			if rAddr, err = mdb.GetOrInsAddress(r); err != nil {
+				break
 			}
 			recipID = sql.NullInt64{Valid: true, Int64: rAddr.id}
 		} else {
 			recipID.Valid = false
 		}
 		// Now make the link
-		_, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
-			aliasAddr.id, recipID, ext)
-		if err != nil {
-			return err
+		if _, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
+			aliasAddr.id, recipID, ext); err != nil {
+			break
 		}
 	}
-	return nil
-}
-
-// IsAlias
-func (mdb *MailDB) IsAlias(alias string) (bool, error) {
-	var (
-		aliasAddr  *Address
-		aliasParts *AddressParts
-		row        *sql.Row
-		err        error
-		count      int
-	)
-	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return false, err
-	}
-	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
-		return false, err
-	}
-	row = mdb.db.QueryRow("SELECT COUNT(*) FROM alias WHERE address = ?", aliasAddr.id)
-	switch err = row.Scan(&count); err {
-	case nil:
-		if count > 0 {
-			return true, nil
-		} else {
-			return false, nil
-		}
-	default:
-		return false, err
-	}
+	return err
 }
 
 // RemoveAlias and all its targets
+// All we need to do here is delete the aliases that aliasAddr points to
+// As the set of aliases disappear, their delete triggers clean up all the
+// orphan targets (and the alias address itself) on the way out
 func (mdb *MailDB) RemoveAlias(alias string) error {
 	var (
-		err        error
-		aliasParts *AddressParts
-		aliasAddr  *Address
-		aliasCnt   int
-		aliasID    int64
-		targetID   sql.NullInt64
-		ext        sql.NullString
+		err       error
+		res       sql.Result
+		aliasAddr *Address
 	)
-	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return err
-	}
 
 	// Enter a transaction for everything else
 	mdb.Begin()
@@ -308,25 +263,18 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 		mdb.End(*e == nil)
 	}(&err)
 
-	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
+	if aliasAddr, err = mdb.GetAddress(alias); err != nil {
 		return err
 	}
-	qa := `SELECT id, target, extension FROM alias WHERE address = ?`
-	rows, err := mdb.tx.Query(qa, aliasAddr.id)
-	for rows.Next() {
-		if err = rows.Scan(&aliasID, &targetID, &ext); err != nil {
-			return err
-		}
-		aliasCnt++
-		if _, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID); err != nil {
-			return err
-		}
-	}
-	if err = rows.Close(); err != nil {
+	if res, err = mdb.tx.Exec("DELETE FROM alias WHERE address = ?", aliasAddr.id); err != nil {
 		return err
-	}
-	if aliasCnt == 0 { // none were found so not an alias
-		return ErrMdbNotAlias
+	} else {
+		c, err := res.RowsAffected()
+		if err != nil {
+			return err
+		} else if c == 0 {
+			return ErrMdbNotAlias
+		}
 	}
 	return nil
 }
@@ -335,7 +283,6 @@ func (mdb *MailDB) RemoveAlias(alias string) error {
 func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	var (
 		err        error
-		aliasParts *AddressParts
 		recipParts *AddressParts
 		aliasAddr  *Address
 		recipAddr  *Address
@@ -343,9 +290,6 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 		ext        sql.NullString
 		row        *sql.Row
 	)
-	if aliasParts, err = DecodeRFC822(alias); err != nil {
-		return err
-	}
 	if recipParts, err = DecodeTarget(recipient); err != nil {
 		return err
 	}
@@ -359,11 +303,11 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 		mdb.End(*e == nil)
 	}(&err)
 
-	if aliasAddr, err = mdb.lookupAddress(aliasParts); err != nil {
+	if aliasAddr, err = mdb.GetAddress(alias); err != nil {
 		return err
 	}
 	if recipParts.domain != "" { // not a file, filter, or include. no address to see
-		if recipAddr, err = mdb.lookupAddress(recipParts); err != nil {
+		if recipAddr, err = mdb.GetAddress(recipient); err != nil {
 			if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
 				return ErrMdbRecipientNotFound
 			} else {
@@ -386,5 +330,5 @@ func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	default:
 		return err
 	}
-	return nil
+	return err
 }
