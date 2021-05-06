@@ -250,79 +250,110 @@ func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 // orphan targets (and the alias address itself) on the way out
 func (mdb *MailDB) RemoveAlias(alias string) error {
 	var (
-		err       error
-		res       sql.Result
-		aliasAddr *Address
+		ap  *AddressParts
+		err error
+		c   int64
+		res sql.Result
 	)
 
-	// Enter a transaction for everything else
-	mdb.Begin()
-	defer mdb.End(&err)
-
-	if aliasAddr, err = mdb.GetAddress(alias); err != nil {
+	if ap, err = DecodeRFC822(alias); err != nil {
 		return err
 	}
-	if res, err = mdb.tx.Exec("DELETE FROM alias WHERE address = ?", aliasAddr.id); err != nil {
-		return err
+	if ap.IsLocal() {
+		qd := `
+DELETE FROM alias WHERE address =
+(SELECT a.id FROM address a  WHERE a.domain IS NULL AND a.localpart = ?)
+`
+		res, err = mdb.db.Exec(qd, ap.lpart)
 	} else {
-		c, err := res.RowsAffected()
-		if err != nil {
-			return err
-		} else if c == 0 {
-			return ErrMdbNotAlias
+		qd := `
+DELETE FROM alias WHERE address =
+(SELECT a.id FROM address a, domain d
+  WHERE a.domain = d.id AND a.localpart = ? AND d.name = ?)
+`
+		res, err = mdb.db.Exec(qd, ap.lpart, ap.domain)
+	}
+	if err == nil {
+		c, err = res.RowsAffected()
+		if err == nil {
+			if c < 1 {
+				err = ErrMdbNotAlias
+			}
 		}
 	}
-	return nil
+	return err
 }
 
 // RemoveRecipient. Remove the alias as well if this is the last target
 func (mdb *MailDB) RemoveRecipient(alias string, recipient string) error {
 	var (
-		err        error
-		recipParts *AddressParts
-		aliasAddr  *Address
-		recipAddr  *Address
-		aliasID    int64
-		ext        sql.NullString
-		row        *sql.Row
+		ap  *AddressParts
+		err error
+		c   int64
+		rp  *AddressParts
+		res sql.Result
 	)
-	if recipParts, err = DecodeTarget(recipient); err != nil {
+
+	if ap, err = DecodeRFC822(alias); err != nil {
 		return err
 	}
-	if recipParts.extension != "" {
-		ext = sql.NullString{Valid: true, String: recipParts.extension}
-	}
-
-	// Enter a transaction for everything else
-	mdb.Begin()
-	defer mdb.End(&err)
-
-	if aliasAddr, err = mdb.GetAddress(alias); err != nil {
+	if rp, err = DecodeTarget(recipient); err != nil {
 		return err
 	}
-	if recipParts.domain != "" { // not a file, filter, or include. no address to see
-		if recipAddr, err = mdb.GetAddress(recipient); err != nil {
-			if err == ErrMdbAddressNotFound || err == ErrMdbDomainNotFound {
-				return ErrMdbRecipientNotFound
+	if ap.IsLocal() {
+		if rp.IsPipe() {
+			qd := `
+DELETE FROM alias WHERE target IS NULL AND extension IS ? AND address =
+  (SELECT id FROM address WHERE localpart = ? AND domain IS NULL)
+`
+			res, err = mdb.db.Exec(qd, rp.extension, ap.lpart)
+		} else {
+			qd := `
+DELETE FROM alias WHERE address =
+  (SELECT id FROM address WHERE localpart = ? AND domain IS NULL)
+`
+			if rp.IsLocal() {
+				qd += `
+ AND target = (SELECT id from address WHERE localpart = ? AND domain IS NULL)
+`
+				res, err = mdb.db.Exec(qd, ap.lpart, rp.lpart)
 			} else {
-				return err
+				qd += `
+ AND target = (SELECT id from address a, domain d
+   WHERE a.localpart = ? AND a.domain = d.id AND d.name = ?)
+`
+				res, err = mdb.db.Exec(qd, ap.lpart, rp.lpart, rp.domain)
 			}
 		}
-		qa := `SELECT id FROM alias WHERE address = ? AND target IS ? AND extension IS ?`
-		row = mdb.tx.QueryRow(qa, aliasAddr.id, recipAddr.id, ext)
-	} else {
-		qa := `SELECT id FROM alias WHERE address = ? AND target IS NULL AND extension IS ?`
-		row = mdb.tx.QueryRow(qa, aliasAddr.id, ext)
-	}
-	switch err = row.Scan(&aliasID); err {
-	case sql.ErrNoRows:
-		return ErrMdbRecipientNotFound
-	case nil:
-		if _, err = mdb.tx.Exec("DELETE FROM alias WHERE id = ?", aliasID); err != nil {
-			return err
+	} else { // name@domain
+		qd := `
+DELETE FROM alias WHERE address =
+  (SELECT a.id FROM address a, domain d WHERE a.localpart = ? AND a.domain = d.id AND d.name = ? )
+`
+		if !rp.IsPipe() {
+			if rp.IsLocal() {
+				qd += `
+ AND target = (SELECT id from address WHERE localpart = ? AND domain IS NULL)
+`
+				res, err = mdb.db.Exec(qd, ap.lpart, ap.domain, rp.lpart)
+			} else {
+				qd += `
+ AND target = (SELECT a.id from address a, domain d
+   WHERE a.localpart = ? AND a.domain = d.id AND d.name = ?)
+`
+				res, err = mdb.db.Exec(qd, ap.lpart, ap.domain, rp.lpart, rp.domain)
+			}
+		} else {
+			err = ErrMdbNoLocalPipe // for name@domain virtuals
 		}
-	default:
-		return err
+	}
+	if err == nil {
+		c, err = res.RowsAffected()
+		if err == nil {
+			if c < 1 {
+				err = ErrMdbRecipientNotFound
+			}
+		}
 	}
 	return err
 }

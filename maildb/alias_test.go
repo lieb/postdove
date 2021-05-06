@@ -379,7 +379,7 @@ func TestAliasOps(t *testing.T) {
 	err = mdb.RemoveAlias("orange.one@putz")
 	if err == nil {
 		t.Errorf("delete of a putz did not fail")
-	} else if err != ErrMdbAddressNotFound {
+	} else if err != ErrMdbNotAlias {
 		t.Errorf("delete of a putz unexpected error, %s", err)
 	}
 
