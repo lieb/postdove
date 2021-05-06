@@ -629,27 +629,25 @@ func (m *VMailbox) Disable() error {
 }
 
 // DeleteVMailbox
-// We also delete the address part but leave the domain alone. Domains are special
-// here because dovecot admin has directory structure that needs the domain intact.
-func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
+// Potential cascaded delete of address is handled by triggers
+func (mdb *MailDB) DeleteVMailbox(address string) error {
 	var (
+		ap  *AddressParts
 		err error
 	)
 
-	// Enter a transaction for everything else
-	mdb.Begin()
-	defer mdb.End(&err)
-
-	vm, err := mdb.GetVMailbox(vaddr)
-	if err != nil {
+	if ap, err = DecodeRFC822(address); err != nil {
 		return err
 	}
-	res, err := mdb.tx.Exec("DELETE FROM vmailbox WHERE id IS ?", vm.a.id)
+	qd := `
+DELETE FROM vmailbox WHERE id =
+  (SELECT a.id FROM address a, domain d
+     WHERE a.domain = d.id AND a.localpart = ? AND d.name = ?)
+`
+	res, err := mdb.db.Exec(qd, ap.lpart, ap.domain)
 	if err != nil {
 		if err.Error() == "ErrMdbMboxIsRecip" {
-			return ErrMdbMboxIsRecip
-		} else {
-			return err
+			err = ErrMdbMboxIsRecip
 		}
 	} else {
 		c, err := res.RowsAffected()
@@ -659,5 +657,5 @@ func (mdb *MailDB) DeleteVMailbox(vaddr string) error {
 			return ErrMdbNotMbox
 		}
 	}
-	return nil
+	return err
 }

@@ -220,7 +220,7 @@ func TestMailbox(t *testing.T) {
 	err = mdb.DeleteVMailbox("yoda@skywalker")
 	if err == nil {
 		t.Errorf("Delete yoda@skywalker should have failed")
-	} else if err != ErrMdbAddressNotFound {
+	} else if err != ErrMdbNotMbox {
 		t.Errorf("Delete yoda@skywalker, %s", err)
 	}
 
