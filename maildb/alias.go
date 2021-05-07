@@ -135,18 +135,12 @@ func (al *Alias) String() string {
 func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 	var (
 		err       error
-		ap        *AddressParts
 		aliasAddr *Address
 	)
 
 	if len(recipients) < 1 {
 		return ErrMdbNoRecipients
 	}
-	ap, err = DecodeRFC822(alias)
-	if err != nil {
-		return err
-	}
-
 	// Enter a transaction for everything else
 	mdb.Begin()
 	defer mdb.End(&err)
@@ -158,37 +152,7 @@ func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
 	// We now have the alias address part, either brand new or an existing
 	// Now cycle through the recipient list and stuff them in
 	for _, r := range recipients {
-		var (
-			rp      *AddressParts
-			rAddr   *Address
-			recipID sql.NullInt64
-			ext     sql.NullString
-		)
-
-		if rp, err = DecodeTarget(r); err != nil {
-			break
-		}
-		if !ap.IsLocal() && rp.IsPipe() { // a virtual alias cannot have a pipe target
-			err = ErrMdbAddressTarget
-			break
-		}
-		if rp.extension != "" {
-			ext.Valid = true
-			ext.String = rp.extension
-		} else {
-			ext.Valid = false
-		}
-		if !rp.IsPipe() { // we have a foo@baz address
-			if rAddr, err = mdb.GetOrInsAddress(r); err != nil {
-				break
-			}
-			recipID = sql.NullInt64{Valid: true, Int64: rAddr.id}
-		} else {
-			recipID.Valid = false
-		}
-		// Now make the link
-		if _, err = mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
-			aliasAddr.id, recipID, ext); err != nil {
+		if err = aliasAddr.AttachAlias(r); err != nil {
 			break
 		}
 	}

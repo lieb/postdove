@@ -455,6 +455,48 @@ func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
 	return nil, err
 }
 
+// AttachAlias
+// Attach an alias recipient to this address. If it was just a simple address before,
+// it is now an alias with one or more recipients
+func (a *Address) AttachAlias(target string) error {
+	var (
+		err     error
+		rp      *AddressParts
+		rAddr   *Address
+		recipID sql.NullInt64
+		ext     sql.NullString
+	)
+
+	if rp, err = DecodeTarget(target); err != nil {
+		return err
+	}
+	if !a.IsLocal() && rp.IsPipe() { // a virtual alias cannot have a pipe target
+		err = ErrMdbAddressTarget
+		return err
+	}
+	if rp.extension != "" {
+		ext = sql.NullString{Valid: true, String: rp.extension}
+	}
+	if !rp.IsPipe() { // we have a foo@baz address
+		rAddr, err = a.mdb.GetOrInsAddress(target)
+		if err == nil {
+			recipID = sql.NullInt64{Valid: true, Int64: rAddr.id}
+		}
+	}
+	if err == nil {
+		// Now make the link
+		_, err = a.mdb.tx.Exec("INSERT INTO alias (address, target, extension) VALUES (?, ?, ?)",
+			a.id, recipID, ext)
+	}
+	return err
+}
+
+// SetTransport
+
+// SetRclass
+
+// SetAccess
+
 // DeleteAddress
 // does not need a transaction because the cleanup delete
 // to an unreferenced domain is done by a trigger
