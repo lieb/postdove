@@ -127,38 +127,6 @@ func (al *Alias) String() string {
 	return line.String()
 }
 
-// MakeAlias
-// This is not 'NewAlias' because we can add recipients to an already made alias
-// do all the address decoding first. That way the transaction is working with
-// already parsed arguments saving complications in rollback on errors. We will
-// only have to rollback on db errors.
-func (mdb *MailDB) MakeAlias(alias string, recipients []string) error {
-	var (
-		err       error
-		aliasAddr *Address
-	)
-
-	if len(recipients) < 1 {
-		return ErrMdbNoRecipients
-	}
-	// Enter a transaction for everything else
-	mdb.Begin()
-	defer mdb.End(&err)
-
-	if aliasAddr, err = mdb.GetOrInsAddress(alias); err != nil {
-		return err
-	}
-
-	// We now have the alias address part, either brand new or an existing
-	// Now cycle through the recipient list and stuff them in
-	for _, r := range recipients {
-		if err = aliasAddr.AttachAlias(r); err != nil {
-			break
-		}
-	}
-	return err
-}
-
 // RemoveAlias and all its targets
 // All we need to do here is delete the aliases that aliasAddr points to
 // As the set of aliases disappear, their delete triggers clean up all the

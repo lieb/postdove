@@ -32,6 +32,34 @@ import (
 	_ "github.com/mattn/go-sqlite3" // do I really need this here?
 )
 
+// makeAlias
+func makeAlias(mdb *MailDB, alias string, recipients []string) error {
+	var (
+		err       error
+		aliasAddr *Address
+	)
+
+	if len(recipients) < 1 {
+		return ErrMdbNoRecipients
+	}
+	// Enter a transaction for everything else
+	mdb.Begin()
+	defer mdb.End(&err)
+
+	if aliasAddr, err = mdb.GetOrInsAddress(alias); err != nil {
+		return err
+	}
+
+	// We now have the alias address part, either brand new or an existing
+	// Now cycle through the recipient list and stuff them in
+	for _, r := range recipients {
+		if err = aliasAddr.AttachAlias(r); err != nil {
+			break
+		}
+	}
+	return err
+}
+
 // TestAliasOps
 func TestAliasOps(t *testing.T) {
 	var (
@@ -57,7 +85,7 @@ func TestAliasOps(t *testing.T) {
 
 	// Test simple MakeAlias
 	recips = []string{"rednose@clown.com"}
-	if err = mdb.MakeAlias("bozo@clown.com", recips); err != nil {
+	if err = makeAlias(mdb, "bozo@clown.com", recips); err != nil {
 		t.Errorf("MakeAlias: bozo@clown.com: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -81,7 +109,7 @@ func TestAliasOps(t *testing.T) {
 
 	// Test /etc/aliases type
 	recips = []string{"| cat > /dev/null"}
-	if err = mdb.MakeAlias("rebar", recips); err != nil {
+	if err = makeAlias(mdb, "rebar", recips); err != nil {
 		t.Errorf("MakeAlias: rebar: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -105,7 +133,7 @@ func TestAliasOps(t *testing.T) {
 
 	// Add another to bozo@clown
 	recips = []string{"micky@clown.com"}
-	if err = mdb.MakeAlias("bozo@clown.com", recips); err != nil {
+	if err = makeAlias(mdb, "bozo@clown.com", recips); err != nil {
 		t.Errorf("MakeAlias: add micky to bozo@clown.com: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -129,7 +157,7 @@ func TestAliasOps(t *testing.T) {
 
 	// Add another to rebar
 	recips = []string{"/tmp/rubbish"}
-	if err = mdb.MakeAlias("rebar", recips); err != nil {
+	if err = makeAlias(mdb, "rebar", recips); err != nil {
 		t.Errorf("MakeAlias: rebar: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -154,7 +182,7 @@ func TestAliasOps(t *testing.T) {
 	// Test a virtual type with pipe for failure
 	recips = nil
 	recips = []string{"/drain.txt"}
-	err = mdb.MakeAlias("pipe@plumbing", recips)
+	err = makeAlias(mdb, "pipe@plumbing", recips)
 	if err != nil {
 		if err != ErrMdbAddressTarget {
 			t.Errorf("MakeAlias: pipe@plumbing: %s", err)
@@ -178,7 +206,7 @@ func TestAliasOps(t *testing.T) {
 
 	// multiple recips in same call
 	recips = []string{"dave@work", "dave@home", "dave@mobile"}
-	if err = mdb.MakeAlias("miller@office", recips); err != nil {
+	if err = makeAlias(mdb, "miller@office", recips); err != nil {
 		t.Errorf("MakeAlias: miller@office: %s", err)
 	}
 	aCount, dCount = countAddresses(mdb)
@@ -201,15 +229,15 @@ func TestAliasOps(t *testing.T) {
 
 	// Now try wildcards. First add in some more aliases
 	recips = []string{"bill@plumbers.com", "mike@shovel.org"}
-	if err = mdb.MakeAlias("steve@office", recips); err != nil {
+	if err = makeAlias(mdb, "steve@office", recips); err != nil {
 		t.Errorf("MakeAlias: steve@office: %s", err)
 	}
 	recips = []string{"willy@circus", "grocho@marx", "chico@marx"}
-	if err = mdb.MakeAlias("steve@clown.com", recips); err != nil {
+	if err = makeAlias(mdb, "steve@clown.com", recips); err != nil {
 		t.Errorf("MakeAlias: steve@clown.com: %s", err)
 	}
 	recips = []string{"root", "daemon@server", "postmaster@usps.gov"}
-	if err = mdb.MakeAlias("postfix", recips); err != nil {
+	if err = makeAlias(mdb, "postfix", recips); err != nil {
 		t.Errorf("MakeAlias: postfix: %s", err)
 	}
 
@@ -456,12 +484,12 @@ func TestAliasOps(t *testing.T) {
 
 	// test + extension stuff
 	recips = []string{"bill+spam@soho.org", "dave+spam@soho.org"}
-	if err = mdb.MakeAlias("spam@soho.org", recips); err != nil {
-		t.Errorf("MakeAlias of spam@soho.org: %s", err)
+	if err = makeAlias(mdb, "spam@soho.org", recips); err != nil {
+		t.Errorf("makeAlias of spam@soho.org: %s", err)
 	}
 	recips = []string{"bill+junk@soho.org", "sue+junk@soho.org"}
-	if err = mdb.MakeAlias("junk@soho.org", recips); err != nil {
-		t.Errorf("MakeAlias of junk@soho.org, %s", err)
+	if err = makeAlias(mdb, "junk@soho.org", recips); err != nil {
+		t.Errorf("makeAlias of junk@soho.org, %s", err)
 	}
 	if err = mdb.RemoveRecipient("spam@soho.org", "bill+spam@soho.org"); err != nil {
 		t.Errorf("RemoveRecipient bill+spam@soho.org: %s", err)

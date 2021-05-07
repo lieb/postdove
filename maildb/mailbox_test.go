@@ -198,7 +198,7 @@ func TestMailbox(t *testing.T) {
 
 	// Remove it first with alias pointing to it
 	luke := []string{"luke@skywalker"}
-	if err = mdb.MakeAlias("rebel@skywalker", luke); err != nil {
+	if err = makeAlias(mdb, "rebel@skywalker", luke); err != nil {
 		t.Errorf("Make rebel@skywalker, %s", err)
 	}
 	err = mdb.DeleteVMailbox("luke@skywalker")
