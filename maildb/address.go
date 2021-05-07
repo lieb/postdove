@@ -347,63 +347,6 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 	return al, err
 }
 
-// insertAddress
-// Insert an address MUST be under a transaction
-func (mdb *MailDB) insertAddress(ap *AddressParts) (*Address, error) {
-	var (
-		addr *Address
-		d    *Domain
-		row  *sql.Row
-		res  sql.Result
-		err  error
-	)
-
-	if mdb.tx == nil {
-		return nil, ErrMdbTransaction
-	}
-	if ap.domain == "" { // A "local user" entry
-		res, err = mdb.tx.Exec("INSERT INTO address (localpart) VALUES (?)", ap.lpart)
-		if err != nil {
-			if strings.Contains(err.Error(), "Duplicate insert") {
-				err = ErrMdbDupAddress // caught by trigger, not constraint
-			}
-		}
-	} else { // A Virtual alias entry
-		if d, err = mdb.GetDomain(ap.domain); err != nil {
-			if err == ErrMdbDomainNotFound {
-				d, err = mdb.InsertDomain(ap.domain, "")
-			}
-		}
-		if err == nil {
-			res, err = mdb.tx.Exec("INSERT INTO address (localpart, domain) VALUES (?, ?)",
-				ap.lpart, d.Id())
-			if err != nil {
-				if IsErrConstraintUnique(err) {
-					err = ErrMdbDupAddress
-				}
-			}
-		} else {
-			return nil, err // error with domain
-		}
-	}
-	if err == nil {
-		if aid, err := res.LastInsertId(); err == nil {
-			addr = &Address{
-				mdb:       mdb,
-				id:        aid,
-				localpart: ap.lpart,
-			}
-			row = mdb.tx.QueryRow(
-				"SELECT transport, rclass, access FROM address WHERE id IS ?", aid)
-			if err = row.Scan(&addr.transport, &addr.rclass, &addr.access); err == nil {
-				addr.d = d
-				return addr, nil
-			}
-		}
-	}
-	return nil, err
-}
-
 // InsertAddress
 // Insert an address MUST be under a transaction
 func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
