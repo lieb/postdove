@@ -86,7 +86,7 @@ func (mdb *MailDB) LookupAlias(alias string) ([]*Alias, error) {
 		return nil, err
 	}
 	for _, a := range a_list {
-		al, err := mdb.lookupAliasByAddr(a)
+		al, err := a.Alias()
 		if err != nil {
 			if err == ErrMdbNotAlias {
 				continue
@@ -101,55 +101,6 @@ func (mdb *MailDB) LookupAlias(alias string) ([]*Alias, error) {
 		err = ErrMdbNoAliases
 	}
 	return al_list, err
-}
-
-// lookupAliasByAddr
-func (mdb *MailDB) lookupAliasByAddr(a *Address) (*Alias, error) {
-	var (
-		aID    int64
-		ta     *Address
-		target sql.NullInt64
-		ext    sql.NullString
-		rows   *sql.Rows
-		rowCnt int64
-		err    error
-	)
-
-	al := &Alias{
-		addr: a,
-	}
-	qal := `SELECT id, target, extension FROM alias WHERE address IS ? ORDER BY id`
-	rows, err = mdb.db.Query(qal, a.id)
-	for rows.Next() {
-		if err = rows.Scan(&aID, &target, &ext); err != nil {
-			return nil, err
-		}
-		if target.Valid {
-			if ta, err = mdb.lookupAddressByID(target.Int64); err != nil {
-				return nil, err
-			}
-		} else {
-			ta = nil
-			if !a.IsLocal() {
-				return nil, ErrMdbAddressTarget
-			}
-		}
-		r := &Recipient{
-			id:  aID,
-			t:   ta,
-			ext: ext,
-		}
-		rowCnt++
-		al.recips = append(al.recips, r)
-
-	}
-	if err = rows.Close(); err != nil {
-		return nil, err
-	}
-	if rowCnt == 0 {
-		return nil, ErrMdbNotAlias
-	}
-	return al, nil
 }
 
 // String

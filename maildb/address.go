@@ -217,43 +217,90 @@ func (mdb *MailDB) GetOrInsAddress(addr string) (*Address, error) {
 	return a, err
 }
 
-// lookupAddressByID
-func (mdb *MailDB) lookupAddressByID(addrID int64) (*Address, error) {
+// Alias
+// Return the alias recipients for this address
+func (a *Address) Alias() (*Alias, error) {
 	var (
-		row    *sql.Row
-		err    error
-		addr   *Address
-		domain sql.NullInt64
+		rows *sql.Rows
+		err  error
 	)
 
+	qal := `SELECT id, target, extension FROM alias WHERE address IS ? ORDER BY id`
 	qa := `
-SELECT localpart, domain, transport, rclass, access
+SELECT id, localpart, domain, transport, rclass, access
 FROM address WHERE id IS ?
 `
-	addr = &Address{
-		mdb: mdb,
-		id:  addrID,
+	qd := `
+SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE id IS ?
+`
+	al := &Alias{
+		addr: a,
 	}
-	row = mdb.db.QueryRow(qa, addrID)
-	switch err = row.Scan(&addr.localpart, &domain,
-		&addr.transport, &addr.rclass, &addr.access); err {
-	case sql.ErrNoRows:
-		return nil, ErrMdbAddressNotFound
-	case nil:
-		break
-	default:
-		return nil, err
-	}
-	if domain.Valid {
-		d, err := mdb.LookupDomainByID(domain.Int64)
-		if err == nil {
-			addr.d = d
-		} else {
+	rows, err = a.mdb.db.Query(qal, a.id)
+	for rows.Next() {
+		var (
+			target sql.NullInt64
+		)
+
+		r := &Recipient{}
+		if err = rows.Scan(&r.id, &target, &r.ext); err != nil {
 			return nil, err
 		}
+		if target.Valid {
+			var (
+				domain sql.NullInt64
+				ta     *Address
+				row    *sql.Row
+			)
+
+			ta = &Address{
+				mdb: a.mdb,
+			}
+			row = a.mdb.db.QueryRow(qa, target.Int64)
+			err = row.Scan(&ta.id, &ta.localpart, &domain, &ta.transport, &ta.rclass, &ta.access)
+			if err == sql.ErrNoRows {
+				err = ErrMdbAddressNotFound
+			}
+			if err == nil {
+				if domain.Valid {
+					d := &Domain{
+						mdb: a.mdb,
+					}
+
+					row = a.mdb.db.QueryRow(qd, domain)
+					err = row.Scan(&d.id, &d.name, &d.class, &d.transport,
+						&d.access, &d.vuid, &d.vgid, &d.rclass)
+					if err == sql.ErrNoRows {
+						err = ErrMdbDomainNotFound
+					}
+					if err == nil {
+						ta.d = d
+					}
+				}
+			}
+			if err == nil {
+				r.t = ta
+			} else {
+				break
+			}
+		} else {
+			if !a.IsLocal() {
+				err = ErrMdbAddressTarget
+				break
+			}
+		}
+		al.recips = append(al.recips, r)
+
 	}
-	addr.mdb = mdb
-	return addr, nil
+	if e := rows.Close(); e != nil {
+		if err == nil {
+			err = e
+		}
+	}
+	if err == nil && len(al.recips) == 0 {
+		return nil, ErrMdbNotAlias
+	}
+	return al, nil
 }
 
 // FindAddress
