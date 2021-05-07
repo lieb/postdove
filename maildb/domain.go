@@ -256,25 +256,6 @@ func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
 	}
 }
 
-// LookupDomainByID
-// Does lookup outside a transaction
-func (mdb *MailDB) LookupDomainByID(id int64) (*Domain, error) {
-	d := &Domain{
-		mdb: mdb,
-		id:  id,
-	}
-	row := mdb.db.QueryRow(
-		"SELECT name, class, transport, access, vuid, vgid, rclass FROM domain WHERE id IS ?", id)
-	switch err := row.Scan(&d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err {
-	case sql.ErrNoRows:
-		return nil, ErrMdbDomainNotFound
-	case nil:
-		return d, nil
-	default:
-		return nil, err
-	}
-}
-
 // FindDomain
 // LookupDomain but with wildcards
 // '*' - find all domains
