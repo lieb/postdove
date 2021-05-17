@@ -39,6 +39,7 @@ var (
 	ErrMdbAddrIllegalChars  = errors.New("illegal chars in address")
 	ErrMdbAddrNoAddr        = errors.New("address extension without user part")
 	ErrMdbNoLocalPipe       = errors.New("no local pipe or redirect")
+	ErrMdbNoQuotedSpace     = errors.New("pipe with spaces requires quotes")
 	ErrMdbBadInclude        = errors.New("badly formed or empty include")
 	ErrMdbTransNoColon      = errors.New("No ':' separator")
 	ErrMdbAddressNotFound   = errors.New("address not found")

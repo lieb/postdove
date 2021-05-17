@@ -81,9 +81,29 @@ func DecodeTarget(addr string) (*AddressParts, error) {
 	}
 	if addr == "" {
 		return nil, ErrMdbTargetEmpty
-	} else if addr[0] == '/' || addr[0] == '|' { // a local pipe or file redirect
+	} else if addr[0] == '/' { // a file redirect
 		if len(addr) > 1 {
 			return ap, nil
+		} else {
+			return nil, ErrMdbNoLocalPipe
+		}
+	} else if addr[0] == '|' { // a local unquoted pipe
+		if len(addr) > 1 {
+			if strings.ContainsAny(addr, " \t") {
+				return nil, ErrMdbNoQuotedSpace
+			} else {
+				return ap, nil
+			}
+		} else {
+			return nil, ErrMdbNoLocalPipe
+		}
+	} else if addr[0] == '"' { // a quoted local pipe
+		if len(addr) > 1 {
+			if addr[1] != '|' || !strings.HasSuffix(addr, "\"") {
+				return nil, ErrMdbNoQuotedSpace
+			} else {
+				return ap, nil
+			}
 		} else {
 			return nil, ErrMdbNoLocalPipe
 		}

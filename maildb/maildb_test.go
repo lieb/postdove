@@ -87,8 +87,9 @@ func TestTarget(t *testing.T) {
 		{"foo@baz", "foo", "baz", ""},
 		{"foo+bar@baz", "foo", "baz", "bar"},
 		{"Foo+baR@bAz", "foo", "baz", "bar"},
-		{"| cat foo", "", "", "| cat foo"},
-		{"| cat Foo", "", "", "| cat Foo"},
+		{"\"| cat foo\"", "", "", "\"| cat foo\""},
+		{"\"| cat Foo\"", "", "", "\"| cat Foo\""},
+		{"|gobbler", "", "", "|gobbler"},
 		{"/dev/null", "", "", "/dev/null"},
 		{":include:everybody.txt", "", "", ":include:everybody.txt"},
 	}
@@ -117,6 +118,24 @@ func TestTarget(t *testing.T) {
 		t.Errorf("foo/bar@baz: did not throw illegal char error")
 	} else if err != ErrMdbAddrIllegalChars {
 		t.Errorf("err code: %s", err)
+	}
+	ap, err = DecodeTarget("|cat foo")
+	if err == nil {
+		t.Errorf("'|cat foo' did not throw no quoted space err")
+	} else if err != ErrMdbNoQuotedSpace {
+		t.Errorf("DecodeTarget: unexpected err code: %s", err)
+	}
+	ap, err = DecodeTarget("\"|cat foo")
+	if err == nil {
+		t.Errorf("'|cat foo' did not throw no quoted space err")
+	} else if err != ErrMdbNoQuotedSpace {
+		t.Errorf("DecodeTarget: unexpected err code: %s", err)
+	}
+	ap, err = DecodeTarget("|")
+	if err == nil {
+		t.Errorf("'|' did not throw no local pipe or redirect")
+	} else if err != ErrMdbNoLocalPipe {
+		t.Errorf("DecodeTarget: unexpected err code: %s", err)
 	}
 	ap, err = DecodeTarget(":bogus:")
 	if err == nil {

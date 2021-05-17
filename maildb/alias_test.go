@@ -108,7 +108,7 @@ func TestAliasOps(t *testing.T) {
 	}
 
 	// Test /etc/aliases type
-	recips = []string{"| cat > /dev/null"}
+	recips = []string{"\"| cat > /dev/null\""}
 	if err = makeAlias(mdb, "rebar", recips); err != nil {
 		t.Errorf("MakeAlias: rebar: %s", err)
 	}
@@ -125,8 +125,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: rebar should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "rebar: | cat > /dev/null" {
-			t.Errorf("rebar: expected \"rebar: | cat > /dev/null\" got %s\n",
+		if al.String() != "rebar: \"| cat > /dev/null\"" {
+			t.Errorf("rebar: expected 'rebar: \"| cat > /dev/null\"' got %s\n",
 				al.String())
 		}
 	}
@@ -173,8 +173,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: rebar should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "rebar: | cat > /dev/null, /tmp/rubbish" {
-			t.Errorf("rebar: expected \"rebar: | cat > /dev/null, /tmp/rubbish\" got %s",
+		if al.String() != "rebar: \"| cat > /dev/null\", /tmp/rubbish" {
+			t.Errorf("rebar: expected \"rebar: \"| cat > /dev/null\", /tmp/rubbish\" got %s",
 				al.String())
 		}
 	}
@@ -321,7 +321,7 @@ func TestAliasOps(t *testing.T) {
 	}
 	res = []string{
 		"postfix: root, daemon@server, postmaster@usps.gov",
-		"rebar: | cat > /dev/null, /tmp/rubbish",
+		"rebar: \"| cat > /dev/null\", /tmp/rubbish",
 	}
 	if len(al_list) != 2 {
 		t.Errorf("LookupAlias: * should be 2 aliases, got %d", len(al_list))
@@ -377,7 +377,7 @@ func TestAliasOps(t *testing.T) {
 	}
 
 	// remove a pipe recipient
-	if err = mdb.RemoveRecipient("rebar", "| cat > /dev/null"); err != nil {
+	if err = mdb.RemoveRecipient("rebar", "\"| cat > /dev/null\""); err != nil {
 		t.Errorf("Remove | cat > /dev/null: %s", err)
 	} else if al_list, err = mdb.LookupAlias("rebar"); err != nil {
 		t.Errorf("Lookup truncated rebar: %s", err)
