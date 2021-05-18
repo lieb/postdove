@@ -82,7 +82,7 @@ lump
 	{
 		test:    "Postfix",
 		use:     POSTFIX,
-		errcode: "got (baz bar)",
+		errcode: "expected 4 items, got 3",
 		importFile: `
 foo baz, bar, zip
 new late, old,
@@ -99,20 +99,20 @@ bad foo, baz bar
 			[]string{"foo", "baz", "bar", "zip"},
 			[]string{"new", "late", "old", "really", "old"},
 			[]string{"skip", "line", "for", "extend", "line", "more", "than", "normal"},
-			[]string{"foo", "baz", "bar"},
+			[]string{"bad", "foo", "baz", "bar"},
 		},
 	},
 	// Postfix file format with continuation error
 	{
 		test:    "Postfix errors",
 		use:     POSTFIX,
-		errcode: "expected 5 items, got 3",
+		errcode: "expected 5 items, got 4",
 		importFile: `
-new late, old # and forget the trailing ','
- really, old
+new late, older # and forget the trailing ','
+ really, older
 `,
 		tokens: [][]string{
-			[]string{"new", "late", "old", "really", "old"},
+			[]string{"new", "late", "older", "really", "older"},
 		},
 	},
 	// Aliases file format
@@ -159,8 +159,6 @@ func test_worker(t []string) error {
 	)
 
 	test = testSuite[testNum]
-	//fmt.Printf("test_worker: len t=%d, len tokens=%d\n", len(t), len(test.tokens[resLine]))
-	//fmt.Printf("test_worker: t = %v, tokens = %v\n", t, test.tokens[resLine])
 	if len(t) != len(test.tokens[resLine]) {
 		err = fmt.Errorf("test_worker: expected %d items, got %d\n",
 			len(test.tokens[resLine]), len(t))

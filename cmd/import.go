@@ -99,50 +99,36 @@ func procImport(cmd *cobra.Command, use ImportType, worker func([]string) error)
 	for lines.Scan() {
 		segment = lines.Text()
 		lineno++
-		if line == "" { // Start of a new line
-			if len(segment) == 0 {
-				continue // blank line
-			}
-			com := strings.IndexByte(segment, '#')
-			if com == 0 { // whole line comment
-				continue
-			} else if com != -1 { // a comment, strip it
-				segment = segment[0:com]
-				if strings.TrimSpace(segment) == "" {
-					continue // just an indented comment or WS line
-				}
-			}
-			if strings.HasPrefix(segment, " ") || strings.HasPrefix(segment, "\t") {
+		com := strings.IndexByte(segment, '#')
+		if com != -1 { // a comment, strip it
+			segment = segment[0:com]
+		}
+		segment = strings.TrimRight(segment, " \t")
+		if segment == "" {
+			continue // blank line
+		}
+		if segment[0] == ' ' || segment[0] == '\t' {
+			if line == "" {
 				err = fmt.Errorf(
 					"At line %d: Indented but not a continuation line", lineno)
 				break
-			} else {
-				line = segment
-				continue
 			}
-		} else { // possible folded line only allow trailing comment
-			com := strings.IndexByte(segment, '#')
-			if com == 0 { // whole line comment
-				segment = ""
-			} else if com != -1 { // a comment somewhere, strip it
-				segment = segment[0:com]
+			line = line + " " + strings.TrimLeft(segment, " \t")
+			continue
+		} else if line == "" {
+			line = strings.TrimLeft(segment, " \t")
+			continue
+		} else {
+			if err = procLine(line, use, worker); err != nil {
+				err = fmt.Errorf("Near line %d: %s", lineno, err)
+				break
 			}
-			if strings.TrimSpace(segment) == "" { // indented comment?
-				segment = ""
-			} else if segment[0] == ' ' || segment[0] == '\t' {
-				line = line + " " + segment
-				continue
-			}
+			imports++
+			line = segment
 		}
-		if err = procLine(line, use, worker); err != nil {
-			err = fmt.Errorf("Near line %d: %s", lineno, err)
-			break
-		}
-		imports++
-		line = segment // don't forget what we peeked at it
 	}
-	if err == nil && segment != "" {
-		if err = procLine(segment, use, worker); err != nil {
+	if err == nil && line != "" {
+		if err = procLine(line, use, worker); err != nil {
 			err = fmt.Errorf("Near line %d: %s", lineno, err)
 		}
 		imports++
@@ -167,9 +153,8 @@ func procLine(line string, use ImportType, worker func([]string) error) error {
 	onComma := func(c rune) bool { return c == ',' }
 	onColon := func(c rune) bool { return c == ':' }
 
-	sp := strings.IndexAny(line, " \t")
-	// fall thru with concatenated line
-	switch use { // requested line syntax
+	sp := strings.IndexAny(line, " \t") // split off first token
+	switch use {                        // requested line syntax
 	case SIMPLE: // key SP value string NL
 		if sp == -1 {
 			return fmt.Errorf("only one token")
