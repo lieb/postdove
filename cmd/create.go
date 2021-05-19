@@ -17,6 +17,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,7 @@ var (
 // cmdCreate
 func cmdCreate(cmd *cobra.Command, args []string) error {
 	var (
+		d   *maildb.Domain
 		err error
 	)
 	if err = mdb.LoadSchema(schemaFile); err != nil {
@@ -35,9 +37,15 @@ func cmdCreate(cmd *cobra.Command, args []string) error {
 	mdb.Begin()
 	defer mdb.End(&err)
 
-	_, err = mdb.InsertDomain("localhost", "local")
+	d, err = mdb.InsertDomain("localhost")
 	if err == nil {
-		_, err = mdb.InsertDomain("localhost.localdomain", "local")
+		err = d.SetClass("local")
 	}
-	return nil
+	if err == nil {
+		d, err = mdb.InsertDomain("localhost.localdomain")
+	}
+	if err == nil {
+		err = d.SetClass("local")
+	}
+	return err
 }

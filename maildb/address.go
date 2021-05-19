@@ -422,7 +422,7 @@ func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
 	} else { // A Virtual alias entry
 		if d, err = mdb.GetDomain(ap.domain); err != nil {
 			if err == ErrMdbDomainNotFound {
-				d, err = mdb.InsertDomain(ap.domain, "")
+				d, err = mdb.InsertDomain(ap.domain)
 			}
 		}
 		if err == nil {

@@ -37,6 +37,7 @@ func TestMailbox(t *testing.T) {
 	var (
 		err error
 		mdb *MailDB
+		d   *Domain
 		dir string
 		mb  *VMailbox
 	)
@@ -56,7 +57,10 @@ func TestMailbox(t *testing.T) {
 	// we first need a real domain so create a few because
 	// we need a domain before we can add mailboxes
 	mdb.Begin()
-	_, err = mdb.InsertDomain("skywalker", "vmailbox")
+	d, err = mdb.InsertDomain("skywalker")
+	if err == nil {
+		err = d.SetClass("vmailbox")
+	}
 	mdb.End(&err)
 	if err != nil {
 		t.Errorf("Insert of skywalker failed, %s", err)
@@ -64,7 +68,10 @@ func TestMailbox(t *testing.T) {
 	}
 
 	mdb.Begin()
-	_, err = mdb.InsertDomain("nowhere", "relay") // fodder for busted mailboxes
+	d, err = mdb.InsertDomain("nowhere")
+	if err != nil {
+		err = d.SetClass("relay") // fodder for busted mailboxes
+	}
 	mdb.End(&err)
 	if err != nil {
 		t.Errorf("Insert of nowhere failed, %s", err)

@@ -219,7 +219,7 @@ func Test_Domain(t *testing.T) {
 	args = []string{"-d", dbfile, "import", "domain"}
 	inputStr := `
 # Just one to test stdin
-bill.org local
+bill.org class=local
 `
 	out, errout, err = doTest(rootCmd, inputStr, args)
 	if err != nil {
@@ -245,7 +245,13 @@ bill.org local
 	}
 
 	// export list to date...
-	exportList := "bill.org local\ndish.net relay\nfoo internet\nlocalhost local\nlocalhost.localdomain local\nrun.com virtual\nzip.com internet\n"
+	exportList := "bill.org class=local, rclass=DEFAULT\n" +
+		"dish.net class=relay, rclass=DUMP\n" +
+		"foo class=internet, rclass=DEFAULT\n" +
+		"localhost class=local, rclass=DEFAULT\n" +
+		"localhost.localdomain class=local, rclass=DEFAULT\n" +
+		"run.com class=virtual, vuid=83, vgid=99, rclass=DEFAULT\n" +
+		"zip.com class=internet, rclass=DEFAULT\n"
 	// now check the contents.
 	args = []string{"-d", dbfile, "export", "domain"}
 	out, errout, err = doTest(rootCmd, "", args)
@@ -273,7 +279,8 @@ bill.org local
 		t.Errorf("Export * domains: Expected no error output, got %s", errout)
 	}
 	// now check just *.com
-	exportList = "run.com virtual\nzip.com internet\n"
+	exportList = "run.com class=virtual, vuid=83, vgid=99, rclass=DEFAULT\n" +
+		"zip.com class=internet, rclass=DEFAULT\n"
 	args = []string{"-d", dbfile, "export", "domain", "*.com"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {

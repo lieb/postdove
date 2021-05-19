@@ -53,7 +53,7 @@ func TestDomain(t *testing.T) {
 	defer mdb.Close()
 
 	// Try to insert a domain without a transaction
-	d, err = mdb.InsertDomain("foo", "")
+	d, err = mdb.InsertDomain("foo")
 	if err == nil {
 		t.Errorf("Insert with no transaction did not fail")
 		return
@@ -64,7 +64,7 @@ func TestDomain(t *testing.T) {
 
 	// Try to insert a domain
 	mdb.Begin()
-	d, err = mdb.InsertDomain("foo", "")
+	d, err = mdb.InsertDomain("foo")
 	mdb.End(&err)
 	if err != nil {
 		t.Errorf("Insert foo: %s", err)
@@ -92,7 +92,7 @@ func TestDomain(t *testing.T) {
 
 	// Try some bad args...
 	mdb.Begin()
-	d, err = mdb.InsertDomain("", "")
+	d, err = mdb.InsertDomain("")
 	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Insert \"\" should have failed")
@@ -100,7 +100,7 @@ func TestDomain(t *testing.T) {
 		t.Errorf("Insert of \"\": %s", err)
 	}
 	mdb.Begin()
-	d, err = mdb.InsertDomain(";bogus", "")
+	d, err = mdb.InsertDomain(";bogus")
 	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Insert \";bogus\" should have failed")
@@ -109,7 +109,10 @@ func TestDomain(t *testing.T) {
 	}
 
 	mdb.Begin()
-	d, err = mdb.InsertDomain("baz", "jazz")
+	d, err = mdb.InsertDomain("baz")
+	if err == nil {
+		err = d.SetClass("jazz")
+	}
 	mdb.End(&err)
 	if err == nil {
 		t.Errorf("Insert \"jazz\" should have failed")
@@ -224,7 +227,7 @@ func TestDomain(t *testing.T) {
 	}
 	mdb.Begin()
 	for _, dom := range domainList {
-		if d, err = mdb.InsertDomain(dom, ""); err != nil {
+		if d, err = mdb.InsertDomain(dom); err != nil {
 			t.Errorf("Insert domains: unexpected error, %s", err)
 			break
 		}

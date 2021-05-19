@@ -1,6 +1,6 @@
 # domains for domain import testing
 
-foo # takes the default class
-zip.com internet
-dish.net relay
-run.com virtual
+foo class="" # takes the default class
+zip.com class=internet
+dish.net class=relay, rclass=DUMP
+run.com class=virtual, vuid=83, vgid=99

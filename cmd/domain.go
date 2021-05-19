@@ -18,6 +18,8 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
@@ -25,8 +27,8 @@ import (
 
 var (
 	dClass string
-	vUid   int
-	vGid   int
+	vUid   int64
+	vGid   int64
 	rClass string
 )
 
@@ -94,9 +96,9 @@ func init() {
 	addCmd.AddCommand(addDomain)
 	addDomain.Flags().StringVarP(&dClass, "class", "c", "",
 		"Domain class (internet, local, relay, virtual, vmailbox) for this domain")
-	addDomain.Flags().IntVarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
+	addDomain.Flags().Int64VarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
 		"Virtual user id for this domain")
-	addDomain.Flags().IntVarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
+	addDomain.Flags().Int64VarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
 		"Virtual group id for this domain")
 	addDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
 		"Restriction class for this domain")
@@ -104,9 +106,9 @@ func init() {
 	editCmd.AddCommand(editDomain)
 	editDomain.Flags().StringVarP(&dClass, "class", "c", "",
 		"Domain class (internet, local, relay, virtual, vmailbox) for this domain")
-	editDomain.Flags().IntVarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
+	editDomain.Flags().Int64VarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
 		"Virtual user id for this domain")
-	editDomain.Flags().IntVarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
+	editDomain.Flags().Int64VarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
 		"Virtual group id for this domain")
 	editDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
 		"Restriction class for this domain")
@@ -120,25 +122,53 @@ func domainImport(cmd *cobra.Command, args []string) error {
 	mdb.Begin()
 	defer mdb.End(&err)
 
-	err = procImport(cmd, SIMPLE, procDomain)
+	err = procImport(cmd, POSTFIX, procDomain)
 	return err
 }
 
 // procDomain
-// for a domain we have no trailing punctuation. If there is only
-// one token, it is the domain and we insert using the default class
+// options are "option=XXX"
 func procDomain(tokens []string) error {
-	var class string
+	var (
+		d   *maildb.Domain
+		err error
+		id  int64
+	)
 
-	switch len(tokens) {
-	case 1:
-		class = ""
-	case 2:
-		class = tokens[1]
-	default:
-		return fmt.Errorf("Imported domain should only have optional class")
+	if d, err = mdb.InsertDomain(tokens[0]); err != nil {
+		return err
 	}
-	_, err := mdb.InsertDomain(tokens[0], class)
+	if len(tokens) > 1 {
+		for _, opt := range tokens[1:] {
+			kv := strings.Split(opt, "=")
+			if len(kv) < 2 {
+				return fmt.Errorf("Badly formed option field key=value pair")
+			}
+			switch kv[0] {
+			case "class":
+				if kv[1] != "\"\"" { // "" implies default so skip on import
+					err = d.SetClass(kv[1])
+				}
+			case "vuid":
+				id, err = strconv.ParseInt(kv[1], 10, 64)
+				if err == nil {
+					err = d.SetVUid(id)
+				}
+			case "vgid":
+				id, err = strconv.ParseInt(kv[1], 10, 64)
+				if err == nil {
+					err = d.SetVGid(id)
+				}
+			case "rclass":
+				err = d.SetRclass(kv[1])
+			default:
+				return fmt.Errorf("Unknown option %s", kv[0])
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
 	return err
 }
 
@@ -173,7 +203,7 @@ func domainAdd(cmd *cobra.Command, args []string) error {
 	mdb.Begin()
 	defer mdb.End(&err)
 
-	d, err = mdb.InsertDomain(args[0], "")
+	d, err = mdb.InsertDomain(args[0])
 	if err == nil && cmd.Flags().Changed("class") {
 		err = d.SetClass(dClass)
 	}

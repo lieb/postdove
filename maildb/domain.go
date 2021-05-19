@@ -87,7 +87,18 @@ func (d *Domain) String() string {
 func (d *Domain) Export() string {
 	var line strings.Builder
 
-	fmt.Fprintf(&line, "%s %s", d.name, domainClass[d.class])
+	fmt.Fprintf(&line, "%s class=%s", d.name, domainClass[d.class])
+	/*	if d.transport.Valid {
+			fmt.Fprintf(&line, ", transport=%d", d.transport.Int64)
+		}
+	*/
+	if d.vuid.Valid {
+		fmt.Fprintf(&line, ", vuid=%d", d.vuid.Int64)
+	}
+	if d.vgid.Valid {
+		fmt.Fprintf(&line, ", vgid=%d", d.vgid.Int64)
+	}
+	fmt.Fprintf(&line, ", rclass=%s", d.rclass)
 	return line.String()
 }
 
@@ -303,34 +314,23 @@ SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE 
 	}
 }
 
-// InsertDomain and start a transaction which must be commited with Release()
+// InsertDomain
 // returns a *Domain. If error, rollback the transaction.
-func (mdb *MailDB) InsertDomain(name string, class string) (*Domain, error) {
+func (mdb *MailDB) InsertDomain(name string) (*Domain, error) {
 	var (
-		dclass Class
-		res    sql.Result
-		err    error
-		ok     bool
+		res sql.Result
+		err error
 	)
 
 	if name == "" || strings.ContainsAny(name, "\n\r\t\f{}()[];\"") ||
 		strings.Contains(name, "..") { // '..' means an empty sub-domain. not allowed
 		return nil, ErrMdbBadName
 	}
-	if class != "" {
-		if dclass, ok = className[strings.ToLower(class)]; !ok {
-			return nil, ErrMdbBadClass
-		}
-	}
 
 	if mdb.tx == nil {
 		return nil, ErrMdbTransaction
 	}
-	if class == "" { // use the schema default
-		res, err = mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", name)
-	} else {
-		res, err = mdb.tx.Exec("INSERT INTO domain (name, class) VALUES (?, ?)", name, int64(dclass))
-	}
+	res, err = mdb.tx.Exec("INSERT INTO domain (name) VALUES (?)", name)
 	if err != nil {
 		if IsErrConstraintUnique(err) {
 			err = ErrMdbDupDomain
@@ -416,7 +416,7 @@ func (d *Domain) SetClass(class string) error {
 // SetAccess
 
 // SetVUid
-func (d *Domain) SetVUid(vuid int) error {
+func (d *Domain) SetVUid(vuid int64) error {
 	var err error
 
 	res, err := d.mdb.tx.Exec("UPDATE domain SET vuid = ? WHERE id = ?", vuid, d.id)
@@ -434,7 +434,7 @@ func (d *Domain) SetVUid(vuid int) error {
 }
 
 // SetVGid
-func (d *Domain) SetVGid(vgid int) error {
+func (d *Domain) SetVGid(vgid int64) error {
 	var err error
 
 	res, err := d.mdb.tx.Exec("UPDATE domain SET vgid = ? WHERE id = ?", vgid, d.id)
