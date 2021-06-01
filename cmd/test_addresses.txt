@@ -1,0 +1,5 @@
+# addresses for address import testing
+
+mary@little.lamb rclass="" # Need to fix this special case
+wolf@forest rclass=BAN
+gramma@cottage rclass=HOME
