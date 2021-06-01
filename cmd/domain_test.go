@@ -235,13 +235,13 @@ bill.org class=local
 	args = []string{"-d", dbfile, "import", "domain", "-i", "./test_domains.txt"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
-		t.Errorf("Import of bill.org: Unexpected error, %s", err)
+		t.Errorf("Import of domains from file: Unexpected error, %s", err)
 	}
 	if out != "" {
-		t.Errorf("Import of bill.org: Expected no output, got %s", out)
+		t.Errorf("Import of domains from file: Expected no output, got %s", out)
 	}
 	if errout != "" {
-		t.Errorf("Import of bill.org: Expected no error output, got %s", errout)
+		t.Errorf("Import of domains from file: Expected no error output, got %s", errout)
 	}
 
 	// export list to date...
