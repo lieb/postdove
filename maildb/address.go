@@ -70,6 +70,49 @@ func (a *Address) String() string {
 	return line.String()
 }
 
+// Transport
+func (a *Address) Transport() string {
+	return "--"
+}
+
+// Access
+func (a *Address) Access() string {
+	return "--"
+}
+
+// Rclass
+func (a *Address) Rclass() string {
+	var line strings.Builder
+
+	if a.rclass.Valid {
+		fmt.Fprintf(&line, "%s", a.rclass.String)
+	} else {
+		fmt.Fprintf(&line, "--")
+	}
+	return line.String()
+}
+
+// Export
+func (a *Address) Export() string {
+	var (
+		line strings.Builder
+	)
+
+	fmt.Fprintf(&line, "%s", a.String())
+	if a.rclass.Valid {
+		fmt.Fprintf(&line, " rclass=%s", a.rclass.String)
+	} else {
+		fmt.Fprintf(&line, " rclass=\"\"")
+	}
+	if a.transport.Valid {
+		fmt.Fprintf(&line, ", transport=%d", a.transport.Int64)
+	}
+	if a.access.Valid {
+		fmt.Fprintf(&line, ", access=%d", a.access.Int64)
+	}
+	return line.String()
+}
+
 // dump
 func (a *Address) dump() string {
 	var (
@@ -494,6 +537,22 @@ func (a *Address) AttachAlias(target string) error {
 // SetTransport
 
 // SetRclass
+func (a *Address) SetRclass(rclass string) error {
+	var err error
+
+	res, err := a.mdb.tx.Exec("UPDATE address SET rclass = ? WHERE id = ?", rclass, a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				a.rclass = sql.NullString{Valid: true, String: rclass}
+			} else {
+				err = ErrMdbAddressNotFound
+			}
+		}
+	}
+	return err
+}
 
 // SetAccess
 
