@@ -202,7 +202,7 @@ DELETE FROM alias WHERE address =
 				res, err = mdb.db.Exec(qd, ap.lpart, rp.lpart)
 			} else {
 				qd += `
- AND target = (SELECT id from address a, domain d
+ AND target = (SELECT a.id from address a, domain d
    WHERE a.localpart = ? AND a.domain = d.id AND d.name = ?)
 `
 				res, err = mdb.db.Exec(qd, ap.lpart, rp.lpart, rp.domain)
