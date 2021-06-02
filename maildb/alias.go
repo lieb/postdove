@@ -67,6 +67,11 @@ func (al *Alias) Id() int64 {
 	return al.addr.id
 }
 
+// Targets
+func (al *Alias) Targets() []*Recipient {
+	return al.recips
+}
+
 // LookupAlias
 // get either "local_user" or "mbox@domain" aliases
 // name@domain returns that alias recipients for this address
