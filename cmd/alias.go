@@ -17,7 +17,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"fmt"
+	//"strconv"
+	//"strings"
+
+	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
+)
+
+var (
+	aAddRecipient []string
+	aDelRecipient []string
 )
 
 // importAlias do import of an aliases file
@@ -29,7 +39,7 @@ from the file named by the -i flag (default stdin '-').
 This is typically the /etc/aliases file that maps various system
 users and email aliases to a specific user or site sysadmin mailbox`,
 	Args: cobra.NoArgs,
-	Run:  aliasImport,
+	RunE: aliasImport,
 }
 
 // exportAlias do export of an aliases file
@@ -40,8 +50,8 @@ var exportAlias = &cobra.Command{
 the file named by the -o flag (default stdout '-').
 This is typically the /etc/aliases file that maps various system
 users and email aliases to a specific user or site sysadmin mailbox`,
-	Args: cobra.NoArgs,
-	Run:  aliasExport,
+	Args: cobra.MaximumNArgs(1),
+	RunE: aliasExport,
 }
 
 // addAlias do add of an aliases file
@@ -54,7 +64,7 @@ One or more recipients can be added. A recipient can either be a single local ma
 i.e. "root" or "admin", an RFC2822 format email address, or a file or a pipe to a command.
  See aliases(5) man page for details.`,
 	Args: cobra.MinimumNArgs(2), // alias recipient ...
-	Run:  aliasAdd,
+	RunE: aliasAdd,
 }
 
 // deleteAlias do delete of an aliases file
@@ -64,16 +74,16 @@ var deleteAlias = &cobra.Command{
 	Long: `Delete an address alias from the database.
 All of the recipients pointed to by this name will be also deleted`,
 	Args: cobra.ExactArgs(1), // alias name
-	Run:  aliasDelete,
+	RunE: aliasDelete,
 }
 
 // editAlias do edit of an aliases file
 var editAlias = &cobra.Command{
 	Use:   "alias address",
-	Short: "Edit the alias address and its recipients in the database",
+	Short: "Edit the alias address recipients in the database",
 	Long:  `Edit a local alias address and its list of recipients.`,
-	Args:  cobra.MaximumNArgs(1), // an alias or all aliases
-	Run:   aliasEdit,
+	Args:  cobra.ExactArgs(1), // an alias or all aliases
+	RunE:  aliasEdit,
 }
 
 // showAlias display an alias
@@ -93,36 +103,147 @@ func init() {
 	addCmd.AddCommand(addAlias)
 	deleteCmd.AddCommand(deleteAlias)
 	editCmd.AddCommand(editAlias)
+	editAlias.Flags().StringSliceVarP(&aAddRecipient, "add", "a", []string{""},
+		"Recipient to add to this alias")
+	editAlias.Flags().StringSliceVarP(&aDelRecipient, "remove", "r", []string{""},
+		"Recipient to remove from this alias")
 	showCmd.AddCommand(showAlias)
 }
 
 // aliasImport the aliases in /etc/aliases format from inFile
-func aliasImport(cmd *cobra.Command, args []string) {
-	cmd.Println("import alias called infile", dbFile, inFile)
+func aliasImport(cmd *cobra.Command, args []string) error {
+	var err error
+
+	mdb.Begin()
+	defer mdb.End(&err)
+
+	err = procImport(cmd, ALIASES, procAlias)
+	return err
+}
+
+// procAlias for both add and import
+func procAlias(tokens []string) error {
+	var (
+		err error
+		a   *maildb.Address
+	)
+
+	if ap, err := maildb.DecodeRFC822(tokens[0]); err != nil {
+		return err
+	} else if !ap.IsLocal() {
+		return fmt.Errorf("An alias cannot have a domain component")
+	}
+	if a, err = mdb.GetOrInsAddress(tokens[0]); err == nil {
+		for _, r := range tokens[1:] {
+			if err = a.AttachAlias(r); err != nil {
+				break
+			}
+		}
+	}
+	return err
 }
 
 // aliasExport the aliases in /etc/aliases format to outFile
-func aliasExport(cmd *cobra.Command, args []string) {
-	cmd.Println("export alias called outfile", dbFile, outFile)
+func aliasExport(cmd *cobra.Command, args []string) error {
+	var (
+		err   error
+		alias string
+		alist []*maildb.Alias
+	)
+
+	if len(args) == 0 {
+		alias = "*"
+	} else {
+		if ap, err := maildb.DecodeRFC822(args[0]); err != nil {
+			return err
+		} else if !ap.IsLocal() {
+			return fmt.Errorf("An alias cannot have a domain component")
+		}
+		alias = args[0]
+	}
+	if alist, err = mdb.LookupAlias(alias); err == nil {
+		for _, al := range alist {
+			cmd.Printf("%s\n", al.String())
+		}
+	}
+	return err
 }
 
 // aliasAdd the alias and its recipients
-func aliasAdd(cmd *cobra.Command, args []string) {
-	cmd.Println("add alias")
+func aliasAdd(cmd *cobra.Command, args []string) error {
+	var err error
+
+	mdb.Begin()
+	defer mdb.End(&err)
+
+	return procAlias(args)
 }
 
 // aliasDelete the address in the first arg
-func aliasDelete(cmd *cobra.Command, args []string) {
-	cmd.Println("delete alias called")
+func aliasDelete(cmd *cobra.Command, args []string) error {
+	if ap, err := maildb.DecodeRFC822(args[0]); err != nil {
+		return err
+	} else if !ap.IsLocal() {
+		return fmt.Errorf("An alias cannot have a domain component")
+	}
+	return mdb.RemoveAlias(args[0])
 }
 
 // aliasEdit the address in the first arg
-func aliasEdit(cmd *cobra.Command, args []string) {
-	cmd.Println("edit alias called")
+func aliasEdit(cmd *cobra.Command, args []string) error {
+	var (
+		err error
+		a   *maildb.Address
+	)
+
+	if ap, err := maildb.DecodeRFC822(args[0]); err != nil {
+		return err
+	} else if !ap.IsLocal() {
+		return fmt.Errorf("An alias cannot have a domain component")
+	}
+	// add new ones first so remove doesn't remove an unattached alias...
+	if err == nil && cmd.Flags().Changed("add") {
+		mdb.Begin()
+
+		if a, err = mdb.GetAddress(args[0]); err == nil {
+			for _, r := range aAddRecipient {
+				if err = a.AttachAlias(r); err != nil {
+					break
+				}
+			}
+		}
+		mdb.End(&err)
+	}
+	if err == nil && cmd.Flags().Changed("remove") {
+		for _, r := range aDelRecipient {
+			if err = mdb.RemoveRecipient(args[0], r); err != nil {
+				break
+			}
+		}
+	}
+	return err
 }
 
 // aliasShow the address in the first arg
 func aliasShow(cmd *cobra.Command, args []string) error {
-	cmd.Println("show alias called for ", args[0])
-	return nil
+	var (
+		err error
+		a   *maildb.Address
+		al  *maildb.Alias
+	)
+
+	if ap, err := maildb.DecodeRFC822(args[0]); err != nil {
+		return err
+	} else if !ap.IsLocal() {
+		return fmt.Errorf("An alias cannot have a domain component")
+	}
+	if a, err = mdb.LookupAddress(args[0]); err == nil {
+		if al, err = a.Alias(); err == nil {
+			cmd.Printf("Alias:\t%s\nTargets:", args[0])
+			for _, t := range al.Targets() {
+				cmd.Printf("\t%s\n", t.String())
+			}
+		}
+	}
+	return err
 }
