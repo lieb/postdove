@@ -32,7 +32,7 @@ import (
 )
 
 // makeTestDB
-func makeTestDB(dbFile string, schema string) (*MailDB, error) {
+func makeTestDB(dbFile string) (*MailDB, error) {
 	var (
 		mdb *MailDB
 		err error
@@ -41,7 +41,7 @@ func makeTestDB(dbFile string, schema string) (*MailDB, error) {
 	if mdb, err = NewMailDB(dbFile); err != nil {
 		return nil, fmt.Errorf("makeTestDB: %s", err)
 	}
-	if err = mdb.LoadSchema(schema); err != nil {
+	if err = mdb.LoadSchema(""); err != nil {
 		return nil, fmt.Errorf("makeTestDB: %s", err)
 	}
 	return mdb, nil
@@ -72,7 +72,7 @@ func TestDBdefaults(t *testing.T) {
 
 	dir, err = ioutil.TempDir("", "TestDBLoad-*")
 	defer os.RemoveAll(dir)
-	mdb, err = makeTestDB(filepath.Join(dir, "test.db"), "../schema.sql")
+	mdb, err = makeTestDB(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Errorf("Database load failed, %s", err)
 		return

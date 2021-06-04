@@ -31,7 +31,12 @@ func cmdCreate(cmd *cobra.Command, args []string) error {
 		d   *maildb.Domain
 		err error
 	)
-	if err = mdb.LoadSchema(schemaFile); err != nil {
+	if cmd.Flags().Changed("schema") {
+		err = mdb.LoadSchema(schemaFile)
+	} else {
+		err = mdb.LoadSchema("")
+	}
+	if err != nil {
 		return err
 	}
 	mdb.Begin()

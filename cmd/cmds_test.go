@@ -88,11 +88,12 @@ func Test_Cmds(t *testing.T) {
 	dbfile = filepath.Join(dir, "test.db")
 
 	// Test create with no flags/args. Assumes test host does not have a dovecot installation
+	// so system DB file doesn't exist or unwriteable since we are not root
 	args = []string{"create"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with no flags should have failed")
-	} else if err.Error() != "LoadSchema: ReadFile, open /etc/dovecot/private/dovecot.schema: no such file or directory" {
+	} else if !strings.Contains(err.Error(), "database file: no such file or directory") {
 		t.Errorf("Create no flags: Unexpected error, %s", err)
 	}
 	if out == "" {
@@ -103,7 +104,7 @@ func Test_Cmds(t *testing.T) {
 	}
 
 	// Create with unwriteable DB but good schema
-	args = []string{"create", "-s", "../schema.sql"}
+	args = []string{"create", "-s", "files/schema.sql"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with bogus schema should have failed")
@@ -118,11 +119,11 @@ func Test_Cmds(t *testing.T) {
 	}
 
 	// Create with usable DB but bogus schema
-	args = []string{"create", "-d", dbfile, "-s", "bogus.schema"}
+	args = []string{"create", "-d", dbfile, "-s", "/foo/bogus.schema"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with bogus schema should have failed")
-	} else if !strings.Contains(err.Error(), "open bogus.schema: no such file or directory") {
+	} else if !strings.Contains(err.Error(), "open /foo/bogus.schema: no such file or directory") {
 		t.Errorf("Create bogus schema: Unexpected error, %s", err)
 	}
 	if out == "" {
@@ -133,7 +134,7 @@ func Test_Cmds(t *testing.T) {
 	}
 
 	// Now create a good database
-	args = []string{"create", "-d", dbfile, "-s", "../schema.sql"}
+	args = []string{"create", "-d", dbfile, "-s", ""}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create good DB: Unexpected error, %s", err)

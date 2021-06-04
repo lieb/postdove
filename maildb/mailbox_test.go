@@ -46,7 +46,7 @@ func TestMailbox(t *testing.T) {
 
 	dir, err = ioutil.TempDir("", "TestDBLoad-*")
 	defer os.RemoveAll(dir)
-	mdb, err = makeTestDB(filepath.Join(dir, "test.db"), "../schema.sql")
+	mdb, err = makeTestDB(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Errorf("Database load failed, %s", err)
 		return

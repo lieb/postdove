@@ -22,9 +22,10 @@ package maildb
 
 import (
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -69,6 +70,10 @@ var (
 	ErrMdbBadUpdate         = errors.New("Update did not happen")
 	ErrMdbMboxIsRecip       = errors.New("Mailbox is an alias recipient")
 )
+
+// Embedded files for database
+//go:embed files
+var DbContent embed.FS
 
 // Useful constants
 var (
@@ -263,8 +268,20 @@ func (mdb *MailDB) DefaultInt(sym string) int64 {
 }
 
 // LoadSchema
+// if the schema name starts with "/" or ".", read from the
+// filesystem otherwise read from the embedded files
 func (mdb *MailDB) LoadSchema(schema string) error {
-	c, err := ioutil.ReadFile(schema)
+	var (
+		c   []byte
+		err error
+	)
+	if strings.HasPrefix(schema, "/") || strings.HasPrefix(schema, ".") {
+		c, err = os.ReadFile(schema)
+	} else if schema != "" {
+		c, err = DbContent.ReadFile(schema)
+	} else { // "" uses the default schema from the embedded
+		c, err = DbContent.ReadFile("files/schema.sql")
+	}
 	if err != nil {
 		return fmt.Errorf("LoadSchema: ReadFile, %s", err)
 	}

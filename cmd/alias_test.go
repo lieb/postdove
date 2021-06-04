@@ -47,7 +47,7 @@ func TestAliasCmds(t *testing.T) {
 	dbfile = filepath.Join(dir, "test.db")
 
 	// Now create a good database
-	args = []string{"create", "-d", dbfile, "-s", "../schema.sql"}
+	args = []string{"create", "-d", dbfile}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create DB: Unexpected error, %s", err)
