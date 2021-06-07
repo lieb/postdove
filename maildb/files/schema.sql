@@ -47,6 +47,30 @@ CREATE TABLE "Domain" (
        CONSTRAINT dom_access FOREIGN KEY(access) REFERENCES Access(id)
        );
 
+-- local_domain
+DROP VIEW IF EXISTS local_domain;
+CREATE VIEW local_domain AS
+  SELECT name FROM domain WHERE class = 1;
+
+
+-- relay_domain
+DROP VIEW IF EXISTS relay_domain;
+CREATE VIEW relay_domain AS
+  SELECT name FROM domain WHERE class = 2;
+
+
+-- virtual_domain
+DROP VIEW IF EXISTS virtual_domain;
+CREATE VIEW virtual_domain AS
+  SELECT name FROM domain WHERE class = 3;
+
+-- vmailbox_domain
+DROP VIEW IF EXISTS vmailbox_domain;
+CREATE VIEW vmailbox_domain AS
+  SELECT name FROM domain WHERE class = 4;
+
+
+
 -- Address table
 DROP TABLE IF EXISTS "Address";
 CREATE TABLE "Address" (
@@ -147,50 +171,41 @@ CREATE TRIGGER after_alias_del_addr AFTER DELETE ON alias
 -- etc_aliases (local aliases)
 -- alias	recipient, recipient ...
 DROP VIEW IF EXISTS "etc_aliases";
-CREATE VIEW "etc_aliases" AS SELECT aa.id as id, aa.localpart as local,
-				 CASE WHEN Alias.target = 0
-                 THEN Alias.extension
-				ELSE ta.localpart ||
-				   (CASE WHEN Alias.extension is NOT NULL
-				         THEN '-' || alias.extension
-						 ELSE '' END) ||
-				    (CASE WHEN td.id = 0
-			              THEN '' ELSE '@' || td.name END)
-				END as VALUE
-		FROM Alias
-		JOIN address as ta on alias.active != 0 and alias.target = ta.id
-		JOIN domain as td on ta.domain = td.id
-		JOIN address as aa on Alias.address = aa.id and aa.domain = 0;
-
--- alias_recipient models the alias/valias file where a line is:
---   alias@dom	   recipient, recipient
---
--- return one or more rows, one for each recipient ...
-DROP VIEW IF EXISTS alias_recipient;
-CREATE VIEW alias_recipient as
-       select a.localpart as tlocal, d.name as tdom,
-       	      aa.localpart as alocal, dd.name as adom, al.extension as ext
-       from address as a
-       	    join domain as d on (a.domain = d.id)
-       	    join alias as al on (al.target = a.id)
-       	    join address as aa on (aa.id = al.address)
-       	    join domain as dd on (aa.domain = d.id);
+CREATE VIEW "etc_aliases" AS
+  SELECT aa.id AS aid, aa.localpart AS local,
+        (CASE WHEN al.target IS NULL
+              THEN al.extension
+              ELSE
+               (SELECT (CASE WHEN ta.domain IS NULL
+	                     THEN ta.localpart
+	                     ELSE ta.localpart || '@' ||
+			          (SELECT name FROM domain WHERE id = ta.domain)
+	                END)
+	       FROM address ta WHERE ta.id = al.target)
+         END) AS targ
+  FROM alias AS al
+  JOIN address AS aa ON al.address = aa.id AND aa.domain IS NULL;
 
 -- virt_alias models the virtuals file where a line is
 --   alias    recipient
 --
 DROP VIEW IF EXISTS "virt_alias";
-CREATE VIEW "virt_alias" AS SELECT aa.localpart as lcl, ad.name as name, ta.localpart ||
+CREATE VIEW "virt_alias" AS
+  SELECT aa.localpart AS lcl,
+         ad.name AS name,
+	 ta.localpart ||
 		(CASE WHEN va.extension is not NULL
 		      THEN '+' || va.extension
-			  ELSE '' END) ||
-			     (CASE WHEN td.id = 0
-				       THEN '' ELSE '@' || td.name end) as valias
-	FROM Alias as va
-	JOIN address as ta on (va.target = ta.id)
-	join domain as td on (ta.domain = td.id)
-	JOIN address as aa on (va.address = aa.id)
-	join domain as ad on (aa.domain != 0 and aa.domain = ad.id);
+		      ELSE ''
+		 END) || (CASE WHEN td.id IS NULL
+			       THEN ''
+			       ELSE '@' || td.name
+			  END) AS valias
+	FROM Alias AS va
+	JOIN address AS ta ON (va.target = ta.id)
+	JOIN domain AS td ON (ta.domain = td.id)
+	JOIN address AS aa ON (va.address = aa.id)
+	JOIN domain AS ad ON (aa.domain != 0 AND aa.domain = ad.id);
 
 -- vmailbox, dovecot user database
 DROP TABLE IF EXISTS "VMailbox";
@@ -243,9 +258,12 @@ CREATE TRIGGER after_del_mbox AFTER DELETE ON vmailbox
 DROP VIEW IF EXISTS "user_mailbox";
 CREATE VIEW "user_mailbox" AS
        select mb.id as id, a.localpart as user, d.name as dom,
-       	      mb.password as pw, coalesce(mb.home, 'vmail') as home,
-       	      coalesce(mb.uid, d.vuid) as uid, coalesce(mb.gid, d.vgid) as gid,
-       	      mb.active as inuse, a.active as active
+       	      '{' || mb.pw_type || '}' || coalesce(mb.password, '*') as pw,
+	      coalesce(mb.uid, coalesce(d.vuid, 99)) AS uid,
+	      coalesce(mb.gid, coalesce(d.vgid, 99)) AS gid,
+       	      coalesce(mb.home, 'vmail/%d/%u') AS home,
+	      coalesce(mb.quota, '*:bytes=0') AS quota,
+       	      mb.enable as enable
        from VMailbox as mb
        	      join address as a on (a.id = mb.id)
 	      join domain as d on (a.domain = d.id);
