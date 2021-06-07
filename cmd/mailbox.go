@@ -218,40 +218,40 @@ func procMailbox(tokens []string) error {
 	// optional tokens[7] extra fields, skip tokens[6] shell field.
 	if len(tokens) > 7 && len(tokens[7]) > 0 {
 		tokens[7] = strings.Join(tokens[7:], ":")
-	}
-	ef := strings.Fields(tokens[7])
-	for _, f := range ef {
-		kv := strings.Split(f, "=")
-		if len(kv) < 2 {
-			return fmt.Errorf("Badly formed extra field key=value pair")
-		}
-		switch kv[0] {
-		case "userdb_quota_rule":
-			if len(kv) == 2 && strings.ToLower(kv[1]) == "none" {
-				err = mb.ClearQuota()
-			} else if len(kv) == 3 {
-				err = mb.SetQuota(kv[1] + "=" + kv[2])
-			} else {
-				err = fmt.Errorf("Badly formatted quota rule")
+		ef := strings.Fields(tokens[7])
+		for _, f := range ef {
+			kv := strings.Split(f, "=")
+			if len(kv) < 2 {
+				return fmt.Errorf("Badly formed extra field key=value pair")
 			}
-			if err != nil {
-				return err
-			}
-		case "mbox_enabled":
-			if e, err := strconv.ParseBool(kv[1]); err != nil {
-				return err
-			} else {
-				if e {
-					err = mb.Enable()
+			switch kv[0] {
+			case "userdb_quota_rule":
+				if len(kv) == 2 && strings.ToLower(kv[1]) == "none" {
+					err = mb.ClearQuota()
+				} else if len(kv) == 3 {
+					err = mb.SetQuota(kv[1] + "=" + kv[2])
 				} else {
-					err = mb.Disable()
+					err = fmt.Errorf("Badly formatted quota rule")
 				}
+				if err != nil {
+					return err
+				}
+			case "mbox_enabled":
+				if e, err := strconv.ParseBool(kv[1]); err != nil {
+					return err
+				} else {
+					if e {
+						err = mb.Enable()
+					} else {
+						err = mb.Disable()
+					}
+				}
+				if err != nil {
+					return err
+				}
+			default:
+				return fmt.Errorf("Unknown extra field")
 			}
-			if err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("Unknown extra field")
 		}
 	}
 	return err
