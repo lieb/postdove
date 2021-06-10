@@ -1,5 +1,4 @@
-decode.go
 
-* add checks for | in DecodeTarget. The correct form for anything beyond alphanum is to quote.
-  as in |"cat - > /dev/null". The '"' must immediately follow the '|'.
+* missing test local: u@d test for RemoveRecipient. check all cases
 
+* Fill out install docs
