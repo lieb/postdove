@@ -250,18 +250,19 @@ CREATE TRIGGER after_del_mbox AFTER DELETE ON vmailbox
   BEGIN
     DELETE FROM address WHERE id = OLD.id; END;
 
--- user_mailbox is a combination of an address row and a vmailbox row
+-- user_mailbox is a combination of an address row and a vmailbox row.
+-- Field names are chosen to match dovecot variables.
 -- There are bits of this I do not like, namely the coalesce functions
 -- with baked in constants. Uid and gid should be NOT NULL and map to
 -- the common passwd entry from sssd. home should be the dir under
 -- home_dir in dovecot's config.
 DROP VIEW IF EXISTS "user_mailbox";
 CREATE VIEW "user_mailbox" AS
-       select mb.id as id, a.localpart as user, d.name as dom,
+       select mb.id as id, a.localpart as username, d.name as domain,
        	      '{' || mb.pw_type || '}' || coalesce(mb.password, '*') as pw,
 	      coalesce(mb.uid, coalesce(d.vuid, 99)) AS uid,
 	      coalesce(mb.gid, coalesce(d.vgid, 99)) AS gid,
-       	      coalesce(mb.home, 'vmail/%d/%u') AS home,
+	      coalesce(mb.home, '') AS home,
 	      coalesce(mb.quota, '*:bytes=0') AS quota,
        	      mb.enable as enable
        from VMailbox as mb
