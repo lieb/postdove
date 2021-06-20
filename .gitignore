@@ -1,6 +1,7 @@
 # editor backup files
 *.bak
 *~
+*.backup
 
 # Binaries for programs and plugins
 *.exe
