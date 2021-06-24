@@ -2,3 +2,10 @@
 * missing test local: u@d test for RemoveRecipient. check all cases
 
 * Fill out install docs
+
+* updated schema to reflect dovecot authorization var names. merge
+
+* Think about method for doing local users and extend vmailbox for it. For now,
+  we only support virtuals.
+
+* make vmailbox.enable an enum to support imap, pop3, etc.
