@@ -19,21 +19,25 @@ All user files are located somewhere else. In short, a hosted VM is not like a s
 The typical choice is either Samba or NFS.
 The configuration of either is no different for a VM than it is for a typical networked system.
 The only caveat is that if NFS is chosen, it should require NFSv4 or higher.
-The version 3 protocol has been deprecated from **Fedora** and other distributions because of its well known weaknesses but there are still a few legacy setups around.
+The version 3 protocol has been deprecated from **Fedora** and other distributions because of its well known weaknesses
+but there are still a few legacy setups around.
 Our configuration is NFSv4.1.
 * The third choice is a virtual filesystem provided by the hypervisor. **Fedora** uses KVM/QUMU so there are two choices.
 A virtual filesystem is based within the hypervisor itself rather than traversing the network stack.
-Up until recent kernels and QEMU emulator versions the only virtual filesystem, called *VirtFS*, was based on the 9P remote file protocol
+Up until recent kernels and QEMU emulator versions, the only virtual filesystem, called *VirtFS*, was based on the 9P remote file protocol
 from the Plan9 operating system.
-Although the concept was cleaner and access confined unlike a network filesystem,
+Although the concept was cleaner and access confined, unlike a network filesystem,
 the protocol has proved to be not very efficient, in fact, much slower than NFSv4.
-Recent kernels and QEMU have a replacement called *Virtio-FS* which uses the FUSE filesystem infrastructure. Its performance is almost as fast as a local filesystem.
+Recent kernels and QEMU have a replacement called *Virtio-FS* which uses the FUSE filesystem infrastructure.
+Its performance is almost as fast as a local filesystem.
 More important, it is fully POSIX compliant which none of the network based protocols support.
 
-Our configuration will be migrating to it soon. *TBD update*.
+Our configuration started over NFSv4 but has since migrated to *Virtio-FS*.
+We document both because every installation is different.
 
-### The players
-We refer to a number of systems throughout this document. To clarify which is which, these are the players:
+## The players
+We refer to a number of systems and directories throughout this document.
+To clarify which is which, these are the players:
 * `example.com` This is the usual example substitute as a disguise for my own domain.
 I have a site presence by that name at my ISP that for this discussion provides SMTP/IMAP for me.
 * `home.example.com` is the subdomain for my private home network.
@@ -48,9 +52,10 @@ Its full name is `pobox.home.example.com`. We shorten the name(s) for simplicity
 * `nighthawk` is a client workstation which I will use as a standin for everything else from our smartphones to my desktop workstation.
 * `/nfs4exports` is the directory on `suntan` that the NFSv4 server is restricted to for exports.
 Each entry here is a *bind* mount of portions of the server's filesystem elsewhere.
-* `/srv/dovecot` This is the mount point on both `suntan` and `pobox`.
+* `/srv/dovecot` This is the mount point on both `suntan` and `pobox` for the
+mail store.
 On `suntan` it is mounted as a sub-volume of one of the RAID1 disk sets.
-On `pobox` it is the *autofs* managed mountpoint of that sub-volume.
+On `pobox` it is either the *autofs* managed mountpoint or the *virtiofs* mount of that sub-volume.
 * `/srv/dovecot/example.com` is the base directory for the IMAP accounts for the domain on both `suntan` and `pobox`.
 Individual home directories for users are only located on `suntan` and are not
 associated with the email configuration. Users only use `suntan` itself for home
@@ -65,9 +70,10 @@ For this service, there are no changes required for either `suntan` or any of th
 your distribution's documentation for the details.
 
 **Fedora**'s default network setup for VM instances is to configure their network to a private bridge that is NAT routed through the hypervisor.
-This is identical to how the typical home Internet is set up. The VM can make
-connections to the outside world but the outside world cannot make connections
-to the VM. However, `pobox` must be visible to the rest of the home network.
+This is identical to how the typical home Internet router is set up by the ISP.
+The VM can make connections to the outside world but the outside world cannot make
+connections to the VM.
+We have to do something else because `pobox` must be visible to the rest of the home network.
 This requires the setup of a second bridge on `suntan` that bypasses the hypervisor.
 The steps are straight forward but we skip the details because there are plenty of
 HOWTOs and tutorials on the subject. In sum, the following steps create what
@@ -75,10 +81,10 @@ we are looking for.
 
 1. Create a bridge on `suntan`. This is separate from the one managed by
 the hypervisor.
-1. Add `suntan`'s ethernet interface to the bridge. This means that `suntan`'s
+1. Attach `suntan`'s ethernet interface to the bridge. This means that `suntan`'s
 IP address is now attached to the bridge.
 1. When creating the VM for `pobox`, choose this new bridge for its
-network connection.
+network connection instead of the hypervisor supplied one.
 
 The end result looks like your typical network switch with two hosts attached to
 it, one called `suntan` and the other called `pobox`.
@@ -122,14 +128,15 @@ rather than a UNIX socket for it, we will route through the *loopback* address
 (127.0.0.1) which has no firewall rules. I have added the *sieve* port here because
 I will be configuring its support in `dovecot`.
 
-### Filesystem Configuration
-The first filesystem setup is done on `suntan` before we attempt anything via NFS.
-The first thing to create is the base directory for IMAP accounts.
+## Filesystem Configuration
+We have two choices for storing user's mail. The first is using NFS.
+With this choice, the mail store can be anywhere reachable by NFS.
 
->`NOTE:` We will only show the configuration results here.
-Consult the system administration documents for the details.
+Before we export a filesystem to our mail server, we have to create it.
+Allocating disk space and formatting it into a filesystem and then
+mounting it on `/srv/dovecot` is an exercise left to the reader.
+This is the key part of `suntan`'s local filesystem that we will be working with.
 
-This is what the filesystem layout on `suntan` looks like:
 ```bash
 [root@suntan ~]# cat /etc/fstab
 ...
@@ -137,49 +144,20 @@ UUID=xxxxxx         /srv/pgdata   btrfs   subvol=pgdata   0 0
 UUID=xxxxxx         /srv/dovecot  btrfs   subvol=dovecot  0 0
 ...
 LABEL=suntan_str    /home         btrfs   defaults,subvol=home    1 2
-
-# nfs v4 shares
-/home              /nfs4exports/home       none  bind    0 0
-/srv/dovecot       /nfs4exports/dovecot    none  bind    0 0
-
 ```
 
-You will notice that the *bind* mounts make `/home` and `/srv/dovecot` which are on different
-BTRFS volume sets available in one place for the NFS server.
-The NFS server uses `/etc/exports` to export filesystems.
+Our filesystem is a BTRFS *subvolume*. That is just my practice. It is
+convenient. For the sake of the discussion, whatever it ends up being
+the root of that tree resides at `/srv/dovecot`.
 
-```bash
-[root@suntan ~]# cat /etc/exports
-/nfs4exports 192.168.2.0/255.255.255.0(rw,insecure,no_subtree_check,nohide,fsid=0)
-/nfs4exports/home 192.168.2.0/255.255.255.0(rw,insecure,no_subtree_check,nohide) 
-/nfs4exports/dovecot pobox(rw,insecure,no_root_squash,no_subtree_check,nohide)
-```
-
-The first entry sets the boundaries for all exports to my local subnet.
-The next entry exports `/home` to that same network in the way typical for
-shared/linked home directories on the laptops and desktops on my home network.
-
-The last entry, by contrast, is of interest to us. Note that `dovecot` is _only_ exported to `pobox`.
-In addition, it has `no_root_squash` added to its options.
-This allows `root` on `pobox` to create and write files as `root` and not `nobody` on `suntan`.
-This is important because it allows the administrator on `pobox` to do filesystem
-tasks on this filesystem. Otherwise, such work would have to be done by the
-`suntan` administrator on `suntan`.
-
-NFSv4 can only export from a single directory for security reasons.
-This is what we have on `suntan`.
-```bash
-[root@suntan ~]# ls -l /nfs4exports/
-total 0
-drwxr-xr-t. 1     97     97  66 Jun 18 08:44 dovecot
-drwxr-xr-x. 1 root   root   174 Feb 11  2019 home
-```
-Note that the owner and group of dovecot is `97`.
+Before we export anything, we can first get the basic skeleton of a mailstore
+in place.
+Note that the owner and group of dovecot is `97` in the commands below.
 This is the uid/gid pair assigned by the **Fedora** install of `dovecot` on `pobox`.
-It may/will be different on another distribution. No matter, use what the install assigns.
+It may/will be different on another distribution.
+No matter, use what the install assigns.
 We do not see the user name here because we are looking at it from `suntan` not `pobox`.
 
-The last thing we need to do before moving over to the `pobox` side is to create some directories for the domains we will be serving.
 We will only be creating one directory but if the service is supporting multiple virtual domains,
 we would be creating additional directories using the same commands.
 
@@ -192,13 +170,21 @@ we would be creating additional directories using the same commands.
 [root@suntan dovecot]# chmod o+t example.com
 ```
 
-Note that we are using `97` again. Remember, `suntan` does not have `dovecot` installed.
 If we look closely, we see that the `example.com` directory is wide open.
-This is because when `dovecot` processes the first email, either by LMTP or IMAP/POP3, it does so as the authenticated user in `dovecot`.
-This is the same behavior as for `/tmp` using the *sticky bit* on the directory which limits the access rights
-so a user can only rename, or worse, delete anything not owned by them.
-This is not a security issue because ordinary mail users can only access this directory via `dovecot`
-which enforces additional access controls.
+This is because when `dovecot` processes the first email, either by LMTP or IMAP/POP3,
+it does so as the authenticated user in `dovecot`.
+This is the same behavior as for `/tmp` using the *sticky bit* on the directory.
+It limits the access rights so a user can create, write, rename, or delete
+files and directories only if they owned by that user.
+The top level directory for an individual user's account will be created
+by `dovecot` on behalf of the
+authenticated user using the user's uid/gid credentials.
+That directory, for example,
+for user `bob@example.com` would be `/srv/dovecot/example.com/bob`.
+It would also be created with mode 0700 which only allows access to user
+`bob@example.com`.
+This is not a security issue because ordinary mail users can only access this directory via `dovecot` which
+enforces additional access controls and they cannot access any user mail directories other than their own because the directory's mode is `drwx------`.
 The end result looks like this:
 
 ```bash
@@ -208,60 +194,20 @@ drwxr-xr-t. 1   97   97         66 Jun 18 08:44 .
 drwxr-xr-x. 1 root root         26 Feb 11  2019 ..
 drwxrwxrwt. 1   97   97         26 Jun 16 16:24 example.com
 ```
+### Attaching The Mail Storage 
+The next step is to setup the export of this filesystem to the VM.
+There are two choices, use the traditional method of exporting the filesystem
+via NFS. This is how one would do it when using a separate server instead of a VM.
+The second choice is to use a *passthrough* filesystem method supported by the
+hypervisor's emulator function. Either configuration will give an identical
+filesystem layout from the mail server's point of view.
 
-We are now done with filesystems on `suntan`.
+If you want to use NFS, move next to [Mail Storage Over NFS](nfs_storage.md).
+If your distribution is recent enough so you can use *VirtioFS*,
+proceed to [Mail Storage Over VirtioFS](virtiofs_storage.md).
+Once you have completed the setup, return here to test everything.
 
-On the `pobox` side we have to properly mount the export.
-We use *autofs* for this to provide flexibility.
-Hard mounts tend to hang systems if not managed in the right order and *autofs* is more tolerant to network burps.
-This whole issue goes away with a virtual filesystem.
-
-#### Access Controls
-Remember we have *selinux* enabled so we have to set up `pobox` to allow access to
-`/srv/dovecot`. 
->*NOTE: The following applies to *selinux* enabled systems. There is a similar
-control for systems that run AppArmor, primarily **Ubuntu**. Consult their
-documentation for how NFS mounts are treated by clients.
-If you have neither and run plain old vanilla UNIX style you can skip this section.
-
-First, let us look at the labels on `suntan`'s side:
-
-```bash
-[root@suntan srv]# ls -laZ dovecot/
-total 2931064
-drwxr-xr-t. 1   97   97 system_u:object_r:var_t:s0             66 Jun 18 08:44 .
-drwxr-xr-x. 1 root root system_u:object_r:var_t:s0             26 Feb 11  2019 ..
-drwxrwxrwt. 1   97   97 unconfined_u:object_r:var_t:s0         26 Jun 16 16:24 example.com
-```
-
-For those unfamiliar with *selinux* labels, the `-Z` option to `ls` is displaying
-the label in the field following the familiar *group* field. It is four fields
-separated by a `:`. What each means is not important here except to see how the
-label changes as displayed on `pobox`.
-
-```bash
-[root@pobox dovecot]# ls -laZ 
-total 2931064
-drwxr-xr-t. 1 dovecot dovecot system_u:object_r:nfs_t:s0            66 Jun 18 08:44 .
-drwxr-xr-x. 3 root    root    system_u:object_r:autofs_t:s0          0 Jun 11 19:01 ..
-drwxrwxrwt. 1 dovecot dovecot system_u:object_r:nfs_t:s0            26 Jun 16 16:24 example.com
-
-```
-
-We can see that the 3rd field in the labels have changed.
-They have gone from `var_t` which is the label for things that locate in `/var`
-to `nfs_t` and `autofs_t`. This is because the file is now on the client side and
-*selinux* requires tighter access controls for network access and denies
-access to *home directories*. We solve this on `pobox` by telling *selinux* that
-it is ok to access nfs mounted home directories.
-
-```bash
-[root@pobox dovecot]# setsebool -P use_nfs_home_dirs 1
-```
-
-Without going into too much detail, this sets a *boolean* in the `pobox` kernel that
-enables (the 1) the `use_nfs_home_dirs` capability.
-
+## Testing the System Configuration
 We check our work by adding and removing files and directories in the
 `/srv/dovecot/example.com` directory.
 They should be owned by the ordinary user we are logged in as. If we change to

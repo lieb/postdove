@@ -1,12 +1,15 @@
 # Dovecot Configuration
+All `dovecot` configuration is done on `pobox`.
+
 All of the configuration for `dovecot` is done in the `/etc/dovecot` directory.
-Its configuration follows a similar style where global parameters are in a single
+Its configuration follows a familiar style where global parameters are in a single
 file that at its end includes specific module parameters from the set of files
-located in the `/etc/dovecot/conf.d` directory. Those files are named so that
-the order in which they are included is determined by the lexical sort order of
-their names. Note the names in `conf.d` below. The files `*.conf` are read in
-the lexical order shown here. The `*.conf.ext` files are included by other
-individual configuration files.
+located in the `/etc/dovecot/conf.d` directory.
+Those files are named so that the order in which they are included is determined
+by the lexical sort order of their names.
+Note the names in `conf.d` below.
+The files `*.conf` are read in the lexical order shown here.
+The `*.conf.ext` files are included by other individual configuration files.
 
 There are a lot of parameters and the files are well commented which means they
 are big. They also can change from release to release. Therefore it does not make
@@ -37,9 +40,8 @@ I only enable *imap* and *lmtp*. I'm not interested in *pop3* for a local server
 the mail service at my ISP.
 
 ## conf.d/10-master.conf
-We accomplish two things in the master file. The first, not really necessary
-because the commented lines with values show the defaults, enables *imaps* via
-its port and SSL.
+We accomplish two things in the master file.
+I break up the *diff* output for the discussion.
 
 ```bash
 [root@pobox dovecot]# diff -u ./conf.d/10-master.conf.orig ./conf.d/10-master.conf
@@ -58,7 +60,13 @@ its port and SSL.
    # Number of connections to handle before starting a new process. Typically
 @@ -57,11 +57,11 @@
    }
- 
+ ```
+
+The first change is not really necessary because the commented lines with values
+show the defaults.
+This change enables *imaps* via its port and enables SSL for it.
+
+```bash
    # Create inet listener only if you can't use the above UNIX socket
 -  #inet_listener lmtp {
 +  inet_listener lmtp {
@@ -74,7 +82,8 @@ its port and SSL.
  service imap {
 ```
 
-We enable *lmtp* for the whole net. However, my whole net is just my home network.
+This enables *lmtp* for the whole net.
+However, my whole net is just my home network.
 One should not do this on a larger net and especially not on a host that is directly
 addressable on the public network. I may change this later back to the defaults.
 
@@ -99,15 +108,15 @@ root@pobox dovecot]# diff -u ./conf.d/10-mail.conf.orig ./conf.d/10-mail.conf
 ```
 
 All the work setting up the filesystems is so this bit of configuration works.
-The *mail_home* directive sets the "root" of the mailstore tree.
+The `mail_home` directive sets the *root* of the mailstore tree.
 This is set up so that `bill@example.com` will have a home for his mail at
-`/srv/dovecot/example.com/bill`. The *mail_location* directive places email in
+`/srv/dovecot/example.com/bill`. The `mail_location` directive places email in
 `srv/dovecot/example.com/bill/Maildir` and its format will be *maildir* which
 will place each email in a separate file. This works well in BTRFS because it
 will store small files more efficiently than other, more traditional filesystems.
 
-This does not preclude having `dovecot` use a different location. The user record in
-the database can override this if desired.
+This does not preclude having `dovecot` from using a different location.
+The user record in the database can override this if desired.
 
 ```bash 
 @@ -105,8 +108,8 @@
@@ -123,13 +132,14 @@ the database can override this if desired.
  # used only with INBOX when either its initial creation or dotlocking fails.
 ```
 
-The *mail_uid* and *mail_gid* are the default values to be used for some
+The `mail_uid` and `mail_gid` are the default values to be used for some
 configurations of `dovecot` that do not want to use user unique uid/gid values.
 We have uid/gid values specified in the database and have our own defaults
-should the record not specify a number. However, having our own in the database
-does not help because `dovecot` insists that these values be set.
-I have set them to `2000` arbitrarily to get them out of the way of any
-active numbers. In this configuration, they should never be used by `dovecot`
+should the record not specify a number.
+However, having our own in the database does not help because `dovecot` insists
+that these values be set.
+I have set them to `2000` arbitrarily to get them out of the way of any active numbers.
+In this configuration, they should never be used by `dovecot`
 other than to annoy the administrator.
 
 ```bash 
@@ -176,7 +186,6 @@ get the memo.
  
  # Minimum SSL protocol version to use. Potentially recognized values are SSLv3,
  # TLSv1, TLSv1.1, and TLSv1.2, depending on the OpenSSL version used.
-[
 ```
 
 This is the SSL certificate setup.
@@ -185,7 +194,8 @@ has a self-signed certificate.
 However, the current version of *OpenSSL* has deprecated the use of keys smaller
 than 4096 bits.
 We could have used the packaged certificate except that it is now too weak
-(only 3K bits). Therefore, we need to install a new certificate with a 4K key.
+(only 3K bits).
+Therefore, we need to install a new certificate with a 4K key.
 The following command will make that happen.
 
 ```bash
@@ -241,12 +251,13 @@ The first change enables *deny* which allows us to control access via the databa
 This is handy especially for dealing with compromised accounts.
 It is not really necessary for my enclosed email environment but anything larger
 would definitely need the ability to disable an IMAP account.
+The second change switches authorization from using the system authorization via
+`/etc/passwd` entries to using SQL queries.
+
+The next two files are now included by `conf.d/10-auth.conf`.
 
 ## conf.d/auth-sql.conf.ext
-All we are doing here is enabling *prefetch* because this eliminates a second SQL
-query to get the extra information needed for configuring a login after
-authentication has been done. Note the comments below on how the query is
-constructed.
+This file defines how the authorization SQL queries will be processed.
 
 ```bash
 [root@pobox dovecot]# diff -u ./conf.d/auth-sql.conf.ext.orig ./conf.d/auth-sql.conf.ext
@@ -268,8 +279,12 @@ constructed.
 
 ```
 
+All we are doing here is enabling *prefetch* because this eliminates a second SQL
+query to get the extra information needed for configuring a login after
+authentication has been done. Note the comments below on how the query is
+constructed.
+
 ## conf.d/auth-deny.conf.ext
-These changes re-configure the *deny* operation to use an SQL query.
 
 ```bash
 [root@pobox dovecot]# diff -u ./conf.d/auth-deny.conf.ext.orig ./conf.d/auth-deny.conf.ext
@@ -299,16 +314,18 @@ These changes re-configure the *deny* operation to use an SQL query.
 +
 
 ```
+These similar changes re-configure the *deny* operation to use an SQL query.
 
 ## SQL Queries
 Everything in the previous sections changes the configuration to use SQL queries
 instead of files to authorize and manage users and their mail stores.
 
 We discuss the database schema in detail in the schema file itself as well as in the
-build documentation. There is one point, however, that is important to the queries
-in this section. To avoid complex and/or obscure SQL queries, we use *views* to
-handle all the complexity in the database and just leave a simple SQL statement for
-the `dovecot` configuration.
+build documentation.
+There is one point, however, that is important to the queries in this section.
+To avoid complex and/or obscure SQL queries, we use *views* in the
+database to handle all the complexity in the database and just leave
+a simple SQL statement for the `dovecot` configuration.
 
 ### dovecot-sql.conf.ext
 
@@ -332,16 +349,17 @@ iterate_query = SELECT username, domain FROM user_mailbox
 
 ```
 
-There are two queries here. One for the *password_query* and the other for the
-*user_query*.
+There are two queries here. One for the `password_query` and the other for the
+`user_query`.
 Note that from above, we have enabled *prefetch*.
-Normally, a *password_query* would only have the user name and password and
-leave the rest to the *user_query*.
-In *prefetch* we have that extra information fetched as well.
+Normally, a `password_query` would only have the user name and password and
+leave the rest to the `user_query`.
+In *prefetch* mode we can that extra information fetched as well in the same query.
 However, there is an obscure `dovecot` wrinkle ( I had a less kind word once
 I figured it out...).
-Arguments to the `where` clause have substitution strings, `%n` for user name
-and `%d` for domain etc. but the terms to the `SELECT` are matched to internal names.
+Arguments to the `WHERE` clause have substitution strings, `%n` for user name
+and `%d` for domain etc. but the names of the returned fields to the `SELECT`
+__must__ match the internal symbol names we intend to receive the values.
 In the *user_query* we see the usual suspects `uid`, `gid`, and `home`.
 But note carefully what is in the *password_query*.
 Instead of `uid` it must be `userdb_uid`.

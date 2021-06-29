@@ -1,18 +1,25 @@
 # Database Creation
 The database creation and management is all done on the mail server `pobox`.
 
-The database file is shared by both servers. Since neither server does any updates, the only
-have read-only access. The file is located in the `/etc/dovecot/private` directly simply for
-convenience. It is possible to only configure `dovecot` and either leave `postfix` to its own
-devices or run with no MTA at all, simply an IMAP/POP3 mailstore. The file is owned by `root`,
-readable by both servers, and denied to everyone else. No security labels other than the
-default ones for the `/etc` directory are applied.
+The database file is shared by the `postfix` and `dovecot` servers.
+Since neither server does any database updates, they only have read-only access.
+The file is located in the `/etc/dovecot/private` directory simply for
+convenience.
+It is possible to only configure `dovecot` and either leave `postfix` to its own
+devices or run with no MTA at all, simply an IMAP/POP3 mailstore.
+The file is owned by `root` with group `mail`.
+It is read/write for `root`, readable by both servers, and denied to everyone else.
+No security labels other than the default ones for the `/etc` directory are applied.
 
-**Fedora** creates `user` and `group` identities for both servers. In addition to the default
-group `postfix`, another group, `mail`, is created by the package for storing email files.
-We use this group to link access for both servers. This is typically safe because `postfix`
-only uses it to create mailboxes and append mail in `/var/mail`. If more security is
-required, there are no limitations built into `postdove` to changing to a new group. All the program requires is read-write access for the administrator.
+**Fedora** creates *user* and *group* identities for both servers.
+In addition to the default group `postfix`, another group, `mail`,
+is created by the package for storing email files.
+We use the `mail` group to link access for both servers.
+This is typically safe because `postfix` only uses it to create mailboxes
+and append mail in `/var/mail`.
+If more security is required, there are no limitations built into `postdove` to
+prevent changing to a new group.
+All the program requires is read-write access for the administrator.
 
 ```bash
 [root@pobox dovecot]# grep dovecot /etc/group
@@ -59,8 +66,8 @@ drwxr-xr-x. 4 root root   160 Mar 22 13:43 ..
 ```
 The end result is that `root` is the only user that can run `postdove`
 to modify the database and only `postfix` and `dovecot` can have read
-access to use it in the running system. We now have an (almost) empty
-database that just contains the following domains:
+access to use it in the running system.
+We also have an (almost) empty database that just contains the following domains:
 ```bash
 [root@pobox dovecot]# postdove show domain localhost
 Name:           localhost
@@ -80,18 +87,6 @@ Group ID:       --
 Restrictions:   DEFAULT
 ```
 We will need a lot more than that to have a useful mail server.
-We will populate the database in the following order:
-
-1. The domain name used for the virtual users. This type of domain
-must be created before any users in that domain, i.e. the domain does
-not automatically get added when a virtual mail user is created.
-1. We can now add users. Note that this just adds the user to the database.
-Other actions must be done before the account is usable for mail. This is
-enough for ```dovecot``` to start serving mail.
-1. Add aliases. These will be used by ```postfix``` to process and deliver
-email to ```dovecot```. There are two types of aliases, ```alias``` and ```virtual```.
-The easiest way to enter them is to ```import``` using the file format that
-```postfix``` uses.
-
-We now have the basics in place for configuring and testing `dovecot`.
+We will cover those details in [Postdove Administration](admin.md) but first
+we must configure the `dovecot` server.
 The next step is [Dovecot Configuration](dovecot_configuration.md).
