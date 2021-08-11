@@ -4,3 +4,9 @@
 * Think about method for doing local users and extend vmailbox for it. For now,
   we only support virtuals.
 
+* make vmailbox.enable an enum to support imap, pop3, etc.
+
+* Add indexes to address.localpart, domain.name. Add name and index
+  to transport and access.
+
+* add tests for views in maildb test suite. Model queries from configs.
