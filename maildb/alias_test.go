@@ -357,6 +357,14 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("delete of bronco.billy unexpected error, %s", err)
 	}
 
+	// delete a bogus pipe recipient
+	err = mdb.RemoveRecipient("steve@office", "\"| cat > /dev/null\"")
+	if err == nil {
+		t.Errorf("delete of '\"|cat > /dev/null\"' should have failed")
+	} else if err != ErrMdbNoLocalPipe {
+		t.Errorf("delete of '\"|cat > /dev/null\"' from steve@office  unexpected error, %s", err)
+	}
+
 	// try to delete a recipient as an alias
 	err = mdb.RemoveAlias("mike@shovel.org")
 	if err == nil {
