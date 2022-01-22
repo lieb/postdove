@@ -47,7 +47,7 @@ func Test_Domain(t *testing.T) {
 	dbfile = filepath.Join(dir, "test.db")
 
 	// Now create a good database
-	args = []string{"create", "-d", dbfile}
+	args = []string{"create", "-d", dbfile, "--no-locals", "--no-aliases"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create DB: Unexpected error, %s", err)
@@ -188,7 +188,7 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Show of somewhere.org: Expected error output, got %s", errout)
 	}
 
-	// now get rid of home.net leaving just the default base (localhost, localhost.localdomain)
+	// now get rid of home.net leaving just the default (no domains)
 	args = []string{"-d", dbfile, "delete", "domain", "home.net"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
@@ -248,8 +248,6 @@ bill.org class=local
 	exportList := "bill.org class=local, rclass=DEFAULT\n" +
 		"dish.net class=relay, rclass=DUMP\n" +
 		"foo class=internet, rclass=DEFAULT\n" +
-		"localhost class=local, rclass=DEFAULT\n" +
-		"localhost.localdomain class=local, rclass=DEFAULT\n" +
 		"run.com class=virtual, vuid=83, vgid=99, rclass=DEFAULT\n" +
 		"zip.com class=internet, rclass=DEFAULT\n"
 	// now check the contents.

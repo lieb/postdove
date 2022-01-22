@@ -46,7 +46,7 @@ func Test_Address(t *testing.T) {
 	dbfile = filepath.Join(dir, "test.db")
 
 	// Now create a good database
-	args = []string{"create", "-d", dbfile}
+	args = []string{"create", "-d", dbfile, "--no-locals", "--no-aliases"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create DB: Unexpected error, %s", err)

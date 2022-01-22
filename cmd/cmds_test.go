@@ -104,7 +104,7 @@ func Test_Cmds(t *testing.T) {
 	}
 
 	// Create with unwriteable DB but good schema
-	args = []string{"create", "-s", "files/schema.sql"}
+	args = []string{"create", "-s", "../maildb/files/schema.sql"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Create with bogus schema should have failed")
@@ -132,9 +132,10 @@ func Test_Cmds(t *testing.T) {
 	if errout == "" {
 		t.Errorf("Create bogus schema: expected formatted error output")
 	}
+	schemaFile = "" // cobra warning! can't run init more than once so hack back to something safe...
 
-	// Now create a good database
-	args = []string{"create", "-d", dbfile, "-s", ""}
+	// Now create a good database with no initialization (yet)
+	args = []string{"create", "-d", dbfile, "--no-locals", "--no-aliases"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Create good DB: Unexpected error, %s", err)
@@ -146,43 +147,4 @@ func Test_Cmds(t *testing.T) {
 		t.Errorf("Create good DB: did not expect error output, got %s", errout)
 	}
 
-	// Domain testing. Check to see if the pre-loaded domains are there
-	args = []string{"-d", dbfile, "show", "domain", "localhost"}
-	out, errout, err = doTest(rootCmd, "", args)
-	if err != nil {
-		t.Errorf("Show of localhost in good DB: Unexpected error, %s", err)
-	}
-	if out != "Name:\t\tlocalhost\nClass:\t\tlocal\nTransport:\t--\nAccess:\t\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\tDEFAULT\n" {
-		t.Errorf("Show of localhost in good DB: did not get expected output, got %s", out)
-	}
-	if errout != "" {
-		t.Errorf("Show of localhost in good DB: did not expect error output, got %s", errout)
-	}
-
-	args = []string{"-d", dbfile, "show", "domain", "localhost.localdomain"}
-	out, errout, err = doTest(rootCmd, "", args)
-	if err != nil {
-		t.Errorf("Show of localhost.localdomain in good DB: Unexpected error, %s", err)
-	}
-	if out != "Name:\t\tlocalhost.localdomain\nClass:\t\tlocal\nTransport:\t--\nAccess:\t\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\tDEFAULT\n" {
-		t.Errorf("Show of localhost.localdomain in good DB: did not get expected output, got %s", out)
-	}
-	if errout != "" {
-		t.Errorf("Show of localhost.localdomain in good DB: did not expect error output, got %s", errout)
-	}
-
-	// Show a bogus domain
-	args = []string{"-d", dbfile, "show", "domain", "lost.mars"}
-	out, errout, err = doTest(rootCmd, "", args)
-	if err == nil {
-		t.Errorf("Show of lost.mars should have failed")
-	} else if err.Error() != "domain not found" {
-		t.Errorf("Show of lost.mars: Unexpected error, %s", err)
-	}
-	if out == "" {
-		t.Errorf("Show of lost.mars: expect help message to output, got nothing")
-	}
-	if errout == "" {
-		t.Errorf("Show of lost.mars: expected formatted error output")
-	}
 }
