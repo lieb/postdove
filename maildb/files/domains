@@ -1,0 +1,5 @@
+# default domains for localhost
+
+localhost	class=local
+localhost.localdomain class=local
+
