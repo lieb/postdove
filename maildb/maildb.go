@@ -25,6 +25,8 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -277,10 +279,10 @@ func (mdb *MailDB) LoadSchema(schema string) error {
 	)
 	if strings.HasPrefix(schema, "/") || strings.HasPrefix(schema, ".") {
 		c, err = os.ReadFile(schema)
-	} else if schema != "" {
-		c, err = DbContent.ReadFile(schema)
-	} else { // "" uses the default schema from the embedded
+	} else if schema == "" { // "" uses the default schema from the embedded
 		c, err = DbContent.ReadFile("files/schema.sql")
+	} else {
+		err = fmt.Errorf("schema file name must begin with '/' or '.'")
 	}
 	if err != nil {
 		return fmt.Errorf("LoadSchema: ReadFile, %s", err)
@@ -292,6 +294,48 @@ func (mdb *MailDB) LoadSchema(schema string) error {
 		}
 	}
 	return nil
+}
+
+type Input struct {
+	inFile fs.File
+	stream io.Reader
+}
+
+// FetchFile
+func (mdb *MailDB) NewInput(name string, embeddedName string) (*Input, error) {
+	var (
+		f   fs.File
+		err error
+	)
+
+	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, ".") {
+		f, err = os.Open(name)
+	} else if name == "" { // "" uses the defaultName
+		f, err = DbContent.Open(embeddedName)
+	} else {
+		err = fmt.Errorf("NewInput: Input file name must begin with '/' or '.'")
+	}
+	if err == nil {
+		in := &Input{
+			inFile: f,
+			stream: f,
+		}
+		return in, nil
+	} else {
+		return nil, err
+	}
+}
+
+// Reader
+func (i *Input) Reader() io.Reader {
+	return i.stream
+}
+
+// Close
+func (i *Input) Close() {
+	if i.inFile != nil {
+		i.inFile.Close()
+	}
 }
 
 // Begin

@@ -156,9 +156,6 @@ func init() {
 
 	// Create command and schema arg
 	rootCmd.AddCommand(createCmd)
-	createCmd.PersistentFlags().StringVarP(&schemaFile, "schema", "s",
-		"/etc/dovecot/private/dovecot.schema",
-		"Schema file to define tables of database")
 
 	// Import command and input file arg
 	rootCmd.AddCommand(importCmd)
