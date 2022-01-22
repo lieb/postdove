@@ -17,6 +17,7 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS "Access";
 CREATE TABLE "Access" (
        id INTEGER PRIMARY KEY,
+       name TEXT UNIQUE,
        action TEXT NOT NULL
        );
 
@@ -24,12 +25,14 @@ CREATE TABLE "Access" (
 DROP TABLE IF EXISTS "Transport";
 CREATE TABLE "Transport" (
        id INTEGER PRIMARY KEY,
+       name TEXT UNIQUE,
        transport TEXT,  -- lmtp|smtp|relay|local|throttled|custom|...
        nexthop TEXT,	-- [domain]:port or domain:port
        UNIQUE (transport,nexthop)
        );
 
 -- domain table
+DROP INDEX IF EXISTS domain_name;
 DROP TABLE IF EXISTS "Domain";
 CREATE TABLE "Domain" (
        id INTEGER PRIMARY KEY,
@@ -42,10 +45,11 @@ CREATE TABLE "Domain" (
        vgid INTEGER,		-- virtual GID
        rclass TEXT DEFAULT "DEFAULT", -- recipient restriction class
        	      	      	      	  -- breaks w/ NULL. make NOT NULL and make it TEXT
-       UNIQUE (name),
        CONSTRAINT dom_trans FOREIGN KEY(transport) REFERENCES Transport(id),
        CONSTRAINT dom_access FOREIGN KEY(access) REFERENCES Access(id)
        );
+
+CREATE UNIQUE INDEX domain_name ON domain(name);
 
 -- local_domain
 DROP VIEW IF EXISTS local_domain;
@@ -72,6 +76,7 @@ CREATE VIEW vmailbox_domain AS
 
 
 -- Address table
+DROP INDEX IF EXISTS address_localpart;
 DROP TABLE IF EXISTS "Address";
 CREATE TABLE "Address" (
        id INTEGER PRIMARY KEY,
@@ -86,6 +91,8 @@ CREATE TABLE "Address" (
        CONSTRAINT addr_access FOREIGN KEY(access) REFERENCES Access(id)
        UNIQUE (localpart, domain)
        );
+
+CREATE UNIQUE INDEX address_localpart ON address(localpart, domain);
 
 -- Create triggers to enforce unique on domain column nulls
 -- This is a ambiguity in the SQL92 spec that (most) everyone handles by making unique
