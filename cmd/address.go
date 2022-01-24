@@ -128,7 +128,7 @@ func procAddress(tokens []string) error {
 		for _, opt := range tokens[1:] {
 			kv := strings.Split(opt, "=")
 			if len(kv) < 2 {
-				return fmt.Errorf("Badly formed option field key=value pair")
+				return fmt.Errorf("Address field %s is not a key=value pair", opt)
 			}
 			switch kv[0] {
 			case "rclass":
@@ -136,7 +136,7 @@ func procAddress(tokens []string) error {
 					err = a.SetRclass(kv[1])
 				}
 			default:
-				return fmt.Errorf("Unknown option %s", kv[0])
+				return fmt.Errorf("Unknown address field %s", kv[0])
 			}
 			if err != nil {
 				break

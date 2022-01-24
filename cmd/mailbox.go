@@ -222,7 +222,7 @@ func procMailbox(tokens []string) error {
 		for _, f := range ef {
 			kv := strings.Split(f, "=")
 			if len(kv) < 2 {
-				return fmt.Errorf("Badly formed extra field key=value pair")
+				return fmt.Errorf("Extra field \"%s\" is not a key=value pair", f)
 			}
 			switch kv[0] {
 			case "userdb_quota_rule":
