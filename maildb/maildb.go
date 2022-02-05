@@ -376,3 +376,42 @@ func (mdb *MailDB) Close() {
 	mdb.db.Close()
 	mdb.db = nil
 }
+
+// Query
+// Generic query. Used mainly for testing
+// return empty slice for no rows
+func (mdb *MailDB) Query(q string) ([]map[string]interface{}, error) {
+	var (
+	//err error
+	//rows
+	)
+	rows, err := mdb.db.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	colNames, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	results := make([]map[string]interface{}, 0)
+	colVals := make([]interface{}, len(colNames))
+	for rows.Next() {
+		for i, _ := range colVals {
+			colVals[i] = new(interface{})
+		}
+		row := make(map[string]interface{}, len(colNames))
+		if err = rows.Scan(colVals...); err != nil {
+			break
+		}
+		for i, col := range colNames {
+			row[col] = *colVals[i].(*interface{})
+		}
+		results = append(results, row)
+	}
+	if e := rows.Close(); e != nil {
+		if err == nil {
+			err = e
+		}
+	}
+	return results, nil
+}
