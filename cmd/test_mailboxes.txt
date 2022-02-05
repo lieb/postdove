@@ -1,0 +1,3 @@
+# some users
+jeff@pobox.org:{PLAIN}*::::::userdb_quota_rule=*:bytes=300M mbox_enabled=true
+dave@pobox.org:{sha256}HJJJYGB:56:83::dave::userdb_quota_rule=*:bytes=40G mbox_enabled=false
