@@ -14,10 +14,13 @@ PRAGMA foreign_keys=ON;
 BEGIN TRANSACTION;
 --
 -- Access table
+-- Table rows match smtpd_restriction_classes list actually implemented
+-- in postfix. The names are the set of acceptable choices in the UI and
+-- we catch editing errors here rather than in the postfix runtime
 DROP TABLE IF EXISTS "Access";
 CREATE TABLE "Access" (
        id INTEGER PRIMARY KEY,
-       name TEXT UNIQUE,
+       name TEXT UNIQUE NOT NULL,
        action TEXT NOT NULL
        );
 
@@ -25,7 +28,7 @@ CREATE TABLE "Access" (
 DROP TABLE IF EXISTS "Transport";
 CREATE TABLE "Transport" (
        id INTEGER PRIMARY KEY,
-       name TEXT UNIQUE,
+       name TEXT UNIQUE NOT NULL,
        transport TEXT,  -- lmtp|smtp|relay|local|throttled|custom|...
        nexthop TEXT,	-- [domain]:port or domain:port
        UNIQUE (transport,nexthop)
@@ -44,7 +47,6 @@ CREATE TABLE "Domain" (
        vuid INTEGER,		-- virtual UID for dovecot general mboxes
        vgid INTEGER,		-- virtual GID
        rclass TEXT DEFAULT "DEFAULT", -- recipient restriction class
-       	      	      	      	  -- breaks w/ NULL. make NOT NULL and make it TEXT
        CONSTRAINT dom_trans FOREIGN KEY(transport) REFERENCES Transport(id),
        CONSTRAINT dom_access FOREIGN KEY(access) REFERENCES Access(id)
        );
