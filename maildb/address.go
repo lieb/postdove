@@ -33,9 +33,8 @@ type Address struct {
 	id        int64
 	d         *Domain
 	localpart string
-	transport sql.NullInt64
-	rclass    sql.NullString
-	access    sql.NullInt64
+	transport *Transport
+	access    *Access
 }
 
 // IsLocal
@@ -65,7 +64,7 @@ func (a *Address) String() string {
 	)
 	fmt.Fprintf(&line, "%s", a.localpart)
 	if a.d != nil {
-		fmt.Fprintf(&line, "@%s", a.d.String())
+		fmt.Fprintf(&line, "@%s", a.d.Name())
 	}
 	return line.String()
 }
@@ -84,8 +83,8 @@ func (a *Address) Access() string {
 func (a *Address) Rclass() string {
 	var line strings.Builder
 
-	if a.rclass.Valid {
-		fmt.Fprintf(&line, "%s", a.rclass.String)
+	if a.access != nil {
+		fmt.Fprintf(&line, "%s", a.access.Name())
 	} else {
 		fmt.Fprintf(&line, "--")
 	}
@@ -99,16 +98,13 @@ func (a *Address) Export() string {
 	)
 
 	fmt.Fprintf(&line, "%s", a.String())
-	if a.rclass.Valid {
-		fmt.Fprintf(&line, " rclass=%s", a.rclass.String)
+	if a.access != nil {
+		fmt.Fprintf(&line, " rclass=%s", a.access.Name())
 	} else {
 		fmt.Fprintf(&line, " rclass=\"\"")
 	}
-	if a.transport.Valid {
-		fmt.Fprintf(&line, ", transport=%d", a.transport.Int64)
-	}
-	if a.access.Valid {
-		fmt.Fprintf(&line, ", access=%d", a.access.Int64)
+	if a.transport != nil {
+		fmt.Fprintf(&line, ", transport=%s", a.transport.Name())
 	}
 	return line.String()
 }
@@ -120,24 +116,19 @@ func (a *Address) dump() string {
 	)
 	fmt.Fprintf(&line, "id:%d, localpart: %s, ", a.id, a.localpart)
 	if a.d != nil {
-		fmt.Fprintf(&line, "domain id: %d, dname: %s, ", a.d.Id(), a.d.String())
+		fmt.Fprintf(&line, "domain id: %d, dname: %s, ", a.d.Id(), a.d.Name())
 	} else {
 		fmt.Fprintf(&line, "domain id: <NULL>, dname: <empty>, ")
 	}
-	if a.transport.Valid {
-		fmt.Fprintf(&line, "transport: %d, ", a.transport.Int64)
+	if a.transport != nil {
+		fmt.Fprintf(&line, "transport: %s, ", a.transport.Name())
 	} else {
 		fmt.Fprintf(&line, "transport: <NULL>, ")
 	}
-	if a.rclass.Valid {
-		fmt.Fprintf(&line, "rclass: %s, ", a.rclass.String)
+	if a.access != nil {
+		fmt.Fprintf(&line, "rclass: %s, ", a.access.Name())
 	} else {
-		fmt.Fprintf(&line, "rclass: <NULL>, ")
-	}
-	if a.access.Valid {
-		fmt.Fprintf(&line, "access: %d, ", a.access.Int64)
-	} else {
-		fmt.Fprintf(&line, "access: <NULL>")
+		fmt.Fprintf(&line, "rclass: <NULL>.")
 	}
 	return line.String()
 }
@@ -148,14 +139,14 @@ func (a *Address) dump() string {
 //
 // query for local (no domain) addresses
 var qaLocal string = `
-SELECT id, localpart, transport, rclass, access FROM address
+SELECT id, localpart, transport, access FROM address
  WHERE localpart = ? AND domain IS NULL
 `
 
 // query for full localpart@domain addresses
 var qaRFC822 string = `
-SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
-       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid, d.rclass
+SELECT a.id, a.localpart, a.transport, a.access,
+       d.id, d.name, d.class, d.transport, d.access, d.vuid, d.vgid
  FROM address AS a, domain AS d
  WHERE a.localpart = ? AND a.domain IS d.id AND d.name = ?
 `
@@ -164,9 +155,13 @@ SELECT a.id, a.localpart, a.transport, a.rclass, a.access,
 // Lookup an address without an active transaction
 func (mdb *MailDB) LookupAddress(addr string) (*Address, error) {
 	var (
-		ap  *AddressParts
-		row *sql.Row
-		err error
+		ap      *AddressParts
+		row     *sql.Row
+		aAccess sql.NullInt64
+		dAccess sql.NullInt64
+		aTrans  sql.NullInt64
+		dTrans  sql.NullInt64
+		err     error
 	)
 
 	if ap, err = DecodeRFC822(addr); err != nil {
@@ -181,23 +176,46 @@ func (mdb *MailDB) LookupAddress(addr string) (*Address, error) {
 	if ap.domain == "" { // A "local" address
 		row = mdb.db.QueryRow(qaLocal, ap.lpart)
 		err = row.Scan(
-			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+			&a.id, &a.localpart, &aTrans, &aAccess)
 	} else { // A full RFC822 address
 		row = mdb.db.QueryRow(qaRFC822, ap.lpart, ap.domain)
 		err = row.Scan(
-			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access,
-			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
+			&a.id, &a.localpart, &aTrans, &aAccess,
+			&d.id, &d.name, &d.class, &dTrans, &dAccess, &d.vuid, &d.vgid)
 	}
 	switch err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
-		a.mdb = mdb
-		if ap.domain != "" {
+		if aAccess.Valid {
+			if ac, err := mdb.getAccessById(aAccess.Int64); err == nil {
+				a.access = ac
+			}
+		}
+		if err == nil && aTrans.Valid {
+			if tr, err := mdb.getTransportById(aTrans.Int64); err == nil {
+				a.transport = tr
+			}
+		}
+		if err == nil && ap.domain != "" {
+			if dAccess.Valid {
+				if ac, err := mdb.getAccessById(dAccess.Int64); err == nil {
+					d.access = ac
+				}
+			}
+			if err == nil && dTrans.Valid {
+				if tr, err := mdb.getTransportById(dTrans.Int64); err == nil {
+					d.transport = tr
+				}
+			}
 			a.d = d
 		}
-		return a, nil
 	default:
+		break
+	}
+	if err == nil {
+		return a, nil
+	} else {
 		return nil, err
 	}
 }
@@ -207,9 +225,13 @@ func (mdb *MailDB) LookupAddress(addr string) (*Address, error) {
 // really a copy of LookupAddress with transaction queries...
 func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
 	var (
-		ap  *AddressParts
-		row *sql.Row
-		err error
+		ap      *AddressParts
+		row     *sql.Row
+		aAccess sql.NullInt64
+		dAccess sql.NullInt64
+		aTrans  sql.NullInt64
+		dTrans  sql.NullInt64
+		err     error
 	)
 
 	if ap, err = DecodeRFC822(addr); err != nil {
@@ -227,23 +249,46 @@ func (mdb *MailDB) GetAddress(addr string) (*Address, error) {
 	if ap.domain == "" { // A "local" address
 		row = mdb.tx.QueryRow(qaLocal, ap.lpart)
 		err = row.Scan(
-			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+			&a.id, &a.localpart, &aTrans, &aAccess)
 	} else { // A full RFC822 address
 		row = mdb.tx.QueryRow(qaRFC822, ap.lpart, ap.domain)
 		err = row.Scan(
-			&a.id, &a.localpart, &a.transport, &a.rclass, &a.access,
-			&d.id, &d.name, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass)
+			&a.id, &a.localpart, &aTrans, &aAccess,
+			&d.id, &d.name, &d.class, &dTrans, &dAccess, &d.vuid, &d.vgid)
 	}
 	switch err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbAddressNotFound
 	case nil:
-		a.mdb = mdb
-		if ap.domain != "" {
+		if aAccess.Valid {
+			if ac, err := mdb.getAccessByIdTx(aAccess.Int64); err == nil {
+				a.access = ac
+			}
+		}
+		if err == nil && aTrans.Valid {
+			if tr, err := mdb.getTransportByIdTx(aTrans.Int64); err == nil {
+				a.transport = tr
+			}
+		}
+		if err == nil && ap.domain != "" {
+			if dAccess.Valid {
+				if ac, err := mdb.getAccessByIdTx(dAccess.Int64); err == nil {
+					d.access = ac
+				}
+			}
+			if err == nil && dTrans.Valid {
+				if tr, err := mdb.getTransportByIdTx(dTrans.Int64); err == nil {
+					d.transport = tr
+				}
+			}
 			a.d = d
 		}
-		return a, nil
 	default:
+		break
+	}
+	if err == nil {
+		return a, nil
+	} else {
 		return nil, err
 	}
 }
@@ -264,17 +309,23 @@ func (mdb *MailDB) GetOrInsAddress(addr string) (*Address, error) {
 // Return the alias recipients for this address
 func (a *Address) Alias() (*Alias, error) {
 	var (
-		rows *sql.Rows
-		err  error
+		rows    *sql.Rows
+		row     *sql.Row
+		domain  sql.NullInt64
+		aAccess sql.NullInt64
+		dAccess sql.NullInt64
+		aTrans  sql.NullInt64
+		dTrans  sql.NullInt64
+		err     error
 	)
 
 	qal := `SELECT id, target, extension FROM alias WHERE address IS ? ORDER BY id`
 	qa := `
-SELECT id, localpart, domain, transport, rclass, access
+SELECT localpart, domain, transport, access
 FROM address WHERE id IS ?
 `
 	qd := `
-SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE id IS ?
+SELECT name, class, transport, access, vuid, vgid FROM domain WHERE id IS ?
 `
 	al := &Alias{
 		addr: a,
@@ -290,36 +341,50 @@ SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE 
 			return nil, err
 		}
 		if target.Valid {
-			var (
-				domain sql.NullInt64
-				ta     *Address
-				row    *sql.Row
-			)
-
-			ta = &Address{
-				mdb: a.mdb,
+			ta := &Address{
+				mdb: a.mdb, id: target.Int64,
 			}
 			row = a.mdb.db.QueryRow(qa, target.Int64)
-			err = row.Scan(&ta.id, &ta.localpart, &domain, &ta.transport, &ta.rclass, &ta.access)
-			if err == sql.ErrNoRows {
+			switch err = row.Scan(&ta.localpart, &domain, &aTrans, &aAccess); err {
+			case sql.ErrNoRows:
 				err = ErrMdbAddressNotFound
-			}
-			if err == nil {
-				if domain.Valid {
-					d := &Domain{
-						mdb: a.mdb,
+			case nil:
+				if aAccess.Valid {
+					if ac, err := a.mdb.getAccessById(aAccess.Int64); err == nil {
+						a.access = ac
 					}
-
-					row = a.mdb.db.QueryRow(qd, domain)
-					err = row.Scan(&d.id, &d.name, &d.class, &d.transport,
-						&d.access, &d.vuid, &d.vgid, &d.rclass)
-					if err == sql.ErrNoRows {
+				}
+				if err != nil && aTrans.Valid {
+					if tr, err := a.mdb.getTransportById(aTrans.Int64); err == nil {
+						a.transport = tr
+					}
+				}
+				if err == nil && domain.Valid {
+					d := &Domain{mdb: a.mdb, id: domain.Int64}
+					row = a.mdb.db.QueryRow(qd, domain.Int64)
+					switch err = row.Scan(&d.name, &d.class, &dTrans, &dAccess, &d.vuid, &d.vgid); err {
+					case sql.ErrNoRows:
 						err = ErrMdbDomainNotFound
+					case nil:
+						if dAccess.Valid {
+							if ac, err := a.mdb.getAccessById(dAccess.Int64); err == nil {
+								d.access = ac
+							}
+						}
+						if err != nil && dTrans.Valid {
+							if tr, err := a.mdb.getTransportById(dTrans.Int64); err == nil {
+								d.transport = tr
+							}
+						}
+					default:
+						break
 					}
 					if err == nil {
 						ta.d = d
 					}
 				}
+			default:
+				break
 			}
 			if err == nil {
 				r.t = ta
@@ -349,18 +414,20 @@ SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE 
 // FindAddress
 func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 	var (
-		err  error
-		ap   *AddressParts
-		q    string
-		rows *sql.Rows
-		al   []*Address
-		dl   []*Domain
+		err     error
+		ap      *AddressParts
+		q       string
+		rows    *sql.Rows
+		aAccess sql.NullInt64
+		aTrans  sql.NullInt64
+		al      []*Address
+		dl      []*Domain
 	)
 
 	if ap, err = DecodeRFC822(address); err != nil {
 		return nil, err
 	}
-	q = "SELECT id, localpart, transport, rclass, access FROM address"
+	q = "SELECT id, localpart, transport, access FROM address"
 	if ap.domain == "" { // "*" is for locals only
 		qa := q + " WHERE domain IS NULL"
 		if ap.lpart == "*" {
@@ -378,11 +445,20 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 			a := &Address{
 				mdb: mdb,
 			}
-			err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+			err = rows.Scan(&a.id, &a.localpart, &aTrans, &aAccess)
 			if err != nil {
 				break
 			}
-			a.mdb = mdb
+			if aAccess.Valid {
+				if ac, err := mdb.getAccessById(aAccess.Int64); err == nil {
+					a.access = ac
+				}
+			}
+			if err != nil && aTrans.Valid {
+				if tr, err := mdb.getTransportById(aTrans.Int64); err == nil {
+					a.transport = tr
+				}
+			}
 			al = append(al, a)
 		}
 		if e := rows.Close(); e != nil {
@@ -413,13 +489,26 @@ func (mdb *MailDB) FindAddress(address string) ([]*Address, error) {
 				a := &Address{
 					mdb: mdb,
 				}
-				err = rows.Scan(&a.id, &a.localpart, &a.transport, &a.rclass, &a.access)
+				err = rows.Scan(&a.id, &a.localpart, &aTrans, &aAccess)
 				if err != nil {
 					break
 				}
-				a.mdb = mdb
-				a.d = d
-				al = append(al, a)
+				if aAccess.Valid {
+					if ac, err := mdb.getAccessById(aAccess.Int64); err == nil {
+						a.access = ac
+					}
+				}
+				if err != nil && aTrans.Valid {
+					if tr, err := mdb.getTransportById(aTrans.Int64); err == nil {
+						a.transport = tr
+					}
+				}
+				if err == nil {
+					a.d = d
+					al = append(al, a)
+				} else {
+					break
+				}
 			}
 			if e := rows.Close(); e != nil {
 				if err == nil {
@@ -444,7 +533,6 @@ func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
 		ap  *AddressParts
 		a   *Address
 		d   *Domain
-		row *sql.Row
 		res sql.Result
 		err error
 	)
@@ -486,16 +574,15 @@ func (mdb *MailDB) InsertAddress(address string) (*Address, error) {
 				mdb:       mdb,
 				id:        aid,
 				localpart: ap.lpart,
-			}
-			row = mdb.tx.QueryRow(
-				"SELECT transport, rclass, access FROM address WHERE id IS ?", aid)
-			if err = row.Scan(&a.transport, &a.rclass, &a.access); err == nil {
-				a.d = d
-				return a, nil
+				d:         d,
 			}
 		}
 	}
-	return nil, err
+	if err == nil {
+		return a, nil
+	} else {
+		return nil, err
+	}
 }
 
 // AttachAlias
@@ -535,17 +622,61 @@ func (a *Address) AttachAlias(target string) error {
 }
 
 // SetTransport
+func (a *Address) SetTransport(name string) error {
+	var (
+		tr  *Transport
+		err error
+	)
 
-// SetRclass
-func (a *Address) SetRclass(rclass string) error {
-	var err error
-
-	res, err := a.mdb.tx.Exec("UPDATE address SET rclass = ? WHERE id = ?", rclass, a.id)
+	if tr, err = a.mdb.GetTransport(name); err != nil {
+		return err
+	}
+	res, err := a.mdb.tx.Exec("UPDATE address SET transport = ? WHERE id = ?", tr.id, a.id)
 	if err == nil {
 		c, err := res.RowsAffected()
 		if err == nil {
 			if c == 1 {
-				a.rclass = sql.NullString{Valid: true, String: rclass}
+				a.transport = tr
+			} else {
+				err = ErrMdbTransNotFound
+			}
+		}
+	}
+	return err
+}
+
+// ClearTransport
+func (a *Address) ClearTransport() error {
+	res, err := a.mdb.tx.Exec("UPDATE address SET transport = NULL WHERE id = ?", a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				a.transport = nil
+			} else {
+				err = ErrMdbTransNotFound
+			}
+		}
+	}
+	return err
+}
+
+// SetRclass
+func (a *Address) SetRclass(name string) error {
+	var (
+		ac  *Access
+		err error
+	)
+
+	if ac, err = a.mdb.GetAccess(name); err != nil {
+		return err
+	}
+	res, err := a.mdb.tx.Exec("UPDATE address SET access = ? WHERE id = ?", ac.id, a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				a.access = ac
 			} else {
 				err = ErrMdbAddressNotFound
 			}
@@ -554,7 +685,21 @@ func (a *Address) SetRclass(rclass string) error {
 	return err
 }
 
-// SetAccess
+// ClearRclass
+func (a *Address) ClearRclass() error {
+	res, err := a.mdb.tx.Exec("UPDATE address SET access = NULL WHERE id = ?", a.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				a.access = nil
+			} else {
+				err = ErrMdbAddressNotFound
+			}
+		}
+	}
+	return err
+}
 
 // DeleteAddress
 // does not need a transaction because the cleanup delete

@@ -45,7 +45,7 @@ func (tg *Recipient) String() string {
 		if tg.ext.Valid {
 			fmt.Fprintf(&line, "%s+%s", tg.t.localpart, tg.ext.String)
 			if !tg.t.IsLocal() {
-				fmt.Fprintf(&line, "@%s", tg.t.d.String())
+				fmt.Fprintf(&line, "@%s", tg.t.d.Name())
 			}
 		} else {
 			fmt.Fprintf(&line, "%s", tg.t.String())

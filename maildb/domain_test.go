@@ -70,12 +70,26 @@ func TestDomain(t *testing.T) {
 		t.Errorf("Insert foo: %s", err)
 		return // no need to go further this early
 	} else {
-		if d.String() != "foo" {
-			t.Errorf("Insert foo: bad String(), %s", d.String())
+		if d.Id() != 1 {
+			t.Errorf("Insert foo: foolishly expected row id 1, got %d", d.Id())
 		}
-		// NOTE: this will fail if you change schema defaults...
-		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
-			t.Errorf("Insert foo: bad dump(), %s", d.dump())
+		if d.Name() != "foo" {
+			t.Errorf("Insert foo: expected name 'foo', got %s", d.Name())
+		}
+		if d.Class() != "internet" {
+			t.Errorf("Insert foo: expected class 'internet', got %s", d.Class())
+		}
+		if d.Transport() != "--" {
+			t.Errorf("Insert foo: expected transport '--', got %s", d.Transport())
+		}
+		if d.Rclass() != "--" {
+			t.Errorf("Insert foo: expected rclass '--', got %s", d.Rclass())
+		}
+		if d.Vuid() != "--" {
+			t.Errorf("Insert foo expected vuid '--', got %s", d.Vuid())
+		}
+		if d.Vgid() != "--" {
+			t.Errorf("Insert foo expected vgid '--', got %s", d.Vgid())
 		}
 		if !d.IsInternet() {
 			t.Errorf("IsInternet should be true")
@@ -125,16 +139,51 @@ func TestDomain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Lookup foo: %s", err)
 	} else {
-		if d.String() != "foo" {
-			t.Errorf("Lookup foo: bad String(), %s", d.String())
+		if d.Id() != 1 {
+			t.Errorf("Insert foo: foolishly expected row id 1, got %d", d.Id())
 		}
-		// NOTE: this will fail if you change schema defaults...
-		if d.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=<NULL>, vgid=<NULL>, rclass=DEFAULT." {
-			t.Errorf("Lookup foo: bad dump(), %s", d.dump())
+		if d.Name() != "foo" {
+			t.Errorf("Insert foo: expected name 'foo', got %s", d.Name())
+		}
+		if d.Class() != "internet" {
+			t.Errorf("Insert foo: expected class 'internet', got %s", d.Class())
+		}
+		if d.Transport() != "--" {
+			t.Errorf("Insert foo: expected transport '--', got %s", d.Transport())
+		}
+		if d.Rclass() != "--" {
+			t.Errorf("Insert foo: expected rclass '--', got %s", d.Rclass())
+		}
+		if d.Vuid() != "--" {
+			t.Errorf("Insert foo expected vuid '--', got %s", d.Vuid())
+		}
+		if d.Vgid() != "--" {
+			t.Errorf("Insert foo expected vgid '--', got %s", d.Vgid())
+		}
+		if !d.IsInternet() {
+			t.Errorf("IsInternet should be true")
+		} else if d.IsLocal() {
+			t.Errorf("IsLocal should be false")
+		} else if d.IsRelay() {
+			t.Errorf("IsRelay should be false")
+		} else if d.IsVirtual() {
+			t.Errorf("IsVirtual should be false")
+		} else if d.IsVmailbox() {
+			t.Errorf("IsVmailbox should be false")
 		}
 	}
 
-	// Set some of the fields, first get the domain for transactions
+	// First add an access and transport so we can see if we can set them
+	// get the domain for transactions, set some of the fields, and check
+	mdb.Begin()
+	if _, err = mdb.InsertAccess("spam", "gooberfilter"); err != nil {
+		t.Errorf("Insert spam entry unexpectedly failed, %s", err)
+	}
+	if _, err = mdb.InsertTransport("relay", "relay", "localhost:56"); err != nil {
+		t.Errorf("Insert relay unexpectedly failed, %s", err)
+	}
+	mdb.End(&err)
+	// new transaction
 	mdb.Begin()
 	d, err = mdb.GetDomain("foo")
 	if err != nil {
@@ -150,42 +199,35 @@ func TestDomain(t *testing.T) {
 		if err = d.SetRclass("spam"); err != nil {
 			t.Errorf("SetRclassid foo, %s", err)
 		}
+		if err = d.SetTransport("relay"); err != nil {
+			t.Errorf("SetTransport foo, %s", err)
+		}
 		mdb.End(&err)
 		// now check it
 		if dn, err := mdb.LookupDomain("foo"); err != nil {
 			t.Errorf("Lookup foo after sets, %s", err)
 		} else {
-			if d.dump() != dn.dump() {
-				t.Errorf("Lookup to set mismatch: d=%s, dn=%s", d.dump(), dn.dump())
+			if dn.Class() != "internet" {
+				t.Errorf("Domain.Class(): expected \"internet\", got %s", dn.Class())
 			}
-			if dn.dump() != "id=1, name=foo, class=internet, transport=<NULL>, access=<NULL>, vuid=53, vgid=42, rclass=spam." {
-				t.Errorf("domain not expected after transactions, %s", d.dump())
+			if dn.Transport() != "relay" {
+				t.Errorf("Domain.Transport(): expected relay, got %s", dn.Transport())
+			}
+			if dn.Vuid() != "53" {
+				t.Errorf("Domain.Vuid(): expected 42, got %s", dn.Vuid())
+			}
+			if dn.Vgid() != "42" {
+				t.Errorf("Domain.Vgid(): expected 42, got %s", dn.Vgid())
+			}
+			if dn.Rclass() != "spam" {
+				t.Errorf("Domain.Rclass(): expected spam, got %s", dn.Rclass())
 			}
 		}
-		if d.Class() != "internet" {
-			t.Errorf("Domain.Class(): expected \"internet\", got %s", d.Class())
-		}
-		if d.Transport() != "--" {
-			t.Errorf("Domain.Transport(): expected --, got %s", d.Transport())
-		}
-		if d.Access() != "--" {
-			t.Errorf("Domain.Access(): expected --, got %s", d.Access())
-		}
-		if d.Vuid() != "53" {
-			t.Errorf("Domain.Vuid(): expected --, got %s", d.Vuid())
-		}
-		if d.Vgid() != "42" {
-			t.Errorf("Domain.Vgid(): expected --, got %s", d.Vgid())
-		}
-		if d.Rclass() != "spam" {
-			t.Errorf("Domain.Rclass(): expected --, got %s", d.Rclass())
-		}
-
 	}
 	// Lookup something not there
 	d, err = mdb.LookupDomain("baz")
 	if err == nil {
-		t.Errorf("Lookup baz should have failed: got %s", d.dump())
+		t.Errorf("Lookup baz should have failed")
 	} else if err != ErrMdbDomainNotFound {
 		t.Errorf("Lookup baz: %s", err)
 	}

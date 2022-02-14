@@ -65,7 +65,7 @@ func TestAddress(t *testing.T) {
 		if a.String() != "dmr" {
 			t.Errorf("dmr: bad String(), %s", a.String())
 		}
-		if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+		if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>." {
 			t.Errorf("dmr: bad dump(), %s", a.dump())
 		}
 	}
@@ -93,7 +93,7 @@ func TestAddress(t *testing.T) {
 		if a.String() != "mary@goof.com" {
 			t.Errorf("mary@goof.com: bad String(), %s", a.String())
 		}
-		if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+		if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
 			t.Errorf("mary@goof.com: bad dump(), %s", a.dump())
 		}
 	}
@@ -118,7 +118,7 @@ func TestAddress(t *testing.T) {
 			t.Errorf("insert of bill@goof.com: expected 3 addr, 1 domain, got %d, %d",
 				aCount, dCount)
 		}
-		if a.dump() != "id:3, localpart: bill, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+		if a.dump() != "id:3, localpart: bill, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
 			t.Errorf("bill@goof.com: bad dump(), %s", a.dump())
 		}
 	}
@@ -148,7 +148,7 @@ func TestAddress(t *testing.T) {
 	if err != nil {
 		t.Errorf("lookup of dmr failed: %s", err)
 	}
-	if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+	if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>." {
 		t.Errorf("dmr: bad dump(), %s", a.dump())
 	}
 
@@ -165,7 +165,7 @@ func TestAddress(t *testing.T) {
 	if err != nil {
 		t.Errorf("lookup of mary@goof.com failed: %s", err)
 	}
-	if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>, access: <NULL>" {
+	if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
 		t.Errorf("mary@goof.com: bad dump(), %s", a.dump())
 	}
 

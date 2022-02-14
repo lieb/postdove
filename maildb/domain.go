@@ -45,11 +45,10 @@ type Domain struct {
 	id        int64
 	name      string
 	class     Class
-	transport sql.NullInt64
-	access    sql.NullInt64
+	transport *Transport
+	access    *Access
 	vuid      sql.NullInt64
 	vgid      sql.NullInt64
-	rclass    string
 }
 
 var domainClass = []string{
@@ -73,14 +72,9 @@ func (d *Domain) Id() int64 {
 	return d.id
 }
 
-// String just the name
-func (d *Domain) String() string {
-	var (
-		line strings.Builder
-	)
-
-	fmt.Fprintf(&line, "%s", d.name)
-	return line.String()
+// Name just the name
+func (d *Domain) Name() string {
+	return d.name
 }
 
 // Export is export/import file format
@@ -88,17 +82,18 @@ func (d *Domain) Export() string {
 	var line strings.Builder
 
 	fmt.Fprintf(&line, "%s class=%s", d.name, domainClass[d.class])
-	/*	if d.transport.Valid {
-			fmt.Fprintf(&line, ", transport=%d", d.transport.Int64)
-		}
-	*/
+	if d.transport != nil {
+		fmt.Fprintf(&line, ", transport=%s", d.transport.Name())
+	}
 	if d.vuid.Valid {
 		fmt.Fprintf(&line, ", vuid=%d", d.vuid.Int64)
 	}
 	if d.vgid.Valid {
 		fmt.Fprintf(&line, ", vgid=%d", d.vgid.Int64)
 	}
-	fmt.Fprintf(&line, ", rclass=%s", d.rclass)
+	if d.access != nil {
+		fmt.Fprintf(&line, ", rclass=%s", d.access.Name())
+	}
 	return line.String()
 }
 
@@ -111,29 +106,12 @@ func (d *Domain) Class() string {
 }
 
 // Transport
-// full transport stuff NYI
 func (d *Domain) Transport() string {
-	var line strings.Builder
-
-	if d.transport.Valid {
-		fmt.Fprintf(&line, "NYI(%d)", d.transport.Int64)
+	if d.transport != nil {
+		return d.transport.Name()
 	} else {
-		fmt.Fprintf(&line, "--")
+		return "--" // shouldn't this really be "" ?
 	}
-	return line.String()
-}
-
-// Access
-// full access stuff NYI
-func (d *Domain) Access() string {
-	var line strings.Builder
-
-	if d.access.Valid {
-		fmt.Fprintf(&line, "NYI(%d)", d.access.Int64)
-	} else {
-		fmt.Fprintf(&line, "--")
-	}
-	return line.String()
 }
 
 // Vuid
@@ -162,41 +140,11 @@ func (d *Domain) Vgid() string {
 
 // Rclass
 func (d *Domain) Rclass() string {
-	var line strings.Builder
-
-	fmt.Fprintf(&line, "%s", d.rclass)
-	return line.String()
-}
-
-// dump
-func (d *Domain) dump() string {
-	var (
-		line strings.Builder
-	)
-
-	fmt.Fprintf(&line, "id=%d, name=%s, class=%s, ", d.id, d.name, domainClass[d.class])
-	if d.transport.Valid {
-		fmt.Fprintf(&line, "transport=%d, ", d.transport.Int64)
+	if d.access != nil {
+		return d.access.Name()
 	} else {
-		fmt.Fprintf(&line, "transport=<NULL>, ")
+		return "--"
 	}
-	if d.access.Valid {
-		fmt.Fprintf(&line, "access=%d, ", d.access.Int64)
-	} else {
-		fmt.Fprintf(&line, "access=<NULL>, ")
-	}
-	if d.vuid.Valid {
-		fmt.Fprintf(&line, "vuid=%d, ", d.vuid.Int64)
-	} else {
-		fmt.Fprintf(&line, "vuid=<NULL>, ")
-	}
-	if d.vgid.Valid {
-		fmt.Fprintf(&line, "vgid=%d, ", d.vgid.Int64)
-	} else {
-		fmt.Fprintf(&line, "vgid=<NULL>, ")
-	}
-	fmt.Fprintf(&line, "rclass=%s.", d.rclass)
-	return line.String()
 }
 
 // IsInternet
@@ -247,22 +195,42 @@ func (d *Domain) IsVmailbox() bool {
 // LookupDomain
 // Does lookup outside a transaction
 func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
+	var (
+		access sql.NullInt64
+		trans  sql.NullInt64
+		err    error
+	)
+
 	if name == "" {
 		return nil, ErrMdbBadName
 	}
 	d := &Domain{
+		mdb:  mdb,
 		name: name,
 	}
 	row := mdb.db.QueryRow(
-		"SELECT id, class, transport, access, vuid, vgid, rclass FROM domain WHERE name = ?",
+		"SELECT id, class, transport, access, vuid, vgid FROM domain WHERE name = ?",
 		name)
-	switch err := row.Scan(&d.id, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err {
+	switch err := row.Scan(&d.id, &d.class, &trans, &access, &d.vuid, &d.vgid); err {
 	case sql.ErrNoRows:
 		return nil, ErrMdbDomainNotFound
 	case nil:
-		d.mdb = mdb
-		return d, nil
+		if access.Valid {
+			if ac, err := mdb.getAccessById(access.Int64); err == nil {
+				d.access = ac
+			}
+		}
+		if err == nil && trans.Valid {
+			if tr, err := mdb.getTransportById(trans.Int64); err == nil {
+				d.transport = tr
+			}
+		}
 	default:
+		break
+	}
+	if err == nil {
+		return d, nil
+	} else {
 		return nil, err
 	}
 }
@@ -274,37 +242,49 @@ func (mdb *MailDB) LookupDomain(name string) (*Domain, error) {
 // '*.*' - find all domains with subdomains
 func (mdb *MailDB) FindDomain(name string) ([]*Domain, error) {
 	var (
-		err       error
-		q         string
-		d         *Domain
-		dl        []*Domain
-		domainCnt int
+		err    error
+		access sql.NullInt64
+		trans  sql.NullInt64
+		q      string
+		d      *Domain
+		dl     []*Domain
 	)
 	if name == "*" {
 		q = `
-SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain ORDER BY NAME`
+SELECT id, name, class, transport, access, vuid, vgid FROM domain ORDER BY NAME`
 	} else {
 		name = strings.ReplaceAll(name, "*", "%")
 		q = `
-SELECT id, name, class, transport, access, vuid, vgid, rclass FROM domain WHERE name LIKE ? ORDER BY name`
+SELECT id, name, class, transport, access, vuid, vgid FROM domain WHERE name LIKE ? ORDER BY name`
 	}
 	rows, err := mdb.db.Query(q, name)
 	for rows.Next() {
-		d = &Domain{}
-		if err = rows.Scan(&d.id, &d.name, &d.class, &d.transport,
-			&d.access, &d.vuid, &d.vgid, &d.rclass); err != nil {
+		d = &Domain{mdb: mdb}
+		if err = rows.Scan(&d.id, &d.name, &d.class, &trans,
+			&access, &d.vuid, &d.vgid); err != nil {
 			break
 		}
-		d.mdb = mdb
+		if access.Valid {
+			if ac, err := mdb.getAccessById(access.Int64); err == nil {
+				d.access = ac
+			}
+		}
+		if err == nil && trans.Valid {
+			if tr, err := mdb.getTransportById(trans.Int64); err == nil {
+				d.transport = tr
+			}
+		}
+		if err != nil {
+			break
+		}
 		dl = append(dl, d)
-		domainCnt++
 	}
 	if e := rows.Close(); e != nil {
 		if err == nil {
 			err = e
 		}
 	}
-	if domainCnt == 0 {
+	if err == nil && len(dl) == 0 {
 		err = ErrMdbDomainNotFound
 	}
 	if err == nil {
@@ -339,14 +319,13 @@ func (mdb *MailDB) InsertDomain(name string) (*Domain, error) {
 		if dID, err := res.LastInsertId(); err == nil {
 			// Now query it to pick up the schema defaults
 			d := &Domain{
+				mdb:  mdb,
 				id:   dID,
 				name: name,
 			}
-			row := mdb.tx.QueryRow(
-				"SELECT class, transport, access, vuid, vgid, rclass FROM domain WHERE id = ?",
-				dID)
-			if err = row.Scan(&d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err == nil {
-				d.mdb = mdb
+			// pick up the default class
+			row := mdb.tx.QueryRow("SELECT class FROM domain WHERE id = ?", dID)
+			if err = row.Scan(&d.class); err == nil {
 				return d, nil
 			}
 		}
@@ -357,27 +336,45 @@ func (mdb *MailDB) InsertDomain(name string) (*Domain, error) {
 // GetDomain
 // fetch the domain under transaction
 func (mdb *MailDB) GetDomain(name string) (*Domain, error) {
-	var err error
+	var (
+		access sql.NullInt64
+		trans  sql.NullInt64
+		err    error
+	)
 
 	if name == "" {
 		return nil, ErrMdbBadName
 	}
 	d := &Domain{
+		mdb:  mdb,
 		name: name,
 	}
 	if mdb.tx == nil {
 		return nil, ErrMdbTransaction
 	}
 	row := mdb.tx.QueryRow(
-		"SELECT id, class, transport, access, vuid, vgid, rclass FROM domain WHERE name = ?",
+		"SELECT id, class, transport, access, vuid, vgid FROM domain WHERE name = ?",
 		name)
-	switch err = row.Scan(&d.id, &d.class, &d.transport, &d.access, &d.vuid, &d.vgid, &d.rclass); err {
+	switch err = row.Scan(&d.id, &d.class, &trans, &access, &d.vuid, &d.vgid); err {
 	case sql.ErrNoRows:
-		return nil, ErrMdbDomainNotFound
+		err = ErrMdbDomainNotFound
 	case nil:
-		d.mdb = mdb
-		return d, nil
+		if access.Valid {
+			if ac, err := mdb.getAccessByIdTx(access.Int64); err == nil {
+				d.access = ac
+			}
+		}
+		if err == nil && trans.Valid {
+			if tr, err := mdb.getTransportByIdTx(trans.Int64); err == nil {
+				d.transport = tr
+			}
+		}
 	default:
+		break
+	}
+	if err == nil {
+		return d, nil
+	} else {
 		return nil, err
 	}
 }
@@ -411,9 +408,47 @@ func (d *Domain) SetClass(class string) error {
 	return err
 }
 
-// SetTransport
+// FIX must have unset too for transport, vuid, vgid, rclass etc.
 
-// SetAccess
+// SetTransport
+func (d *Domain) SetTransport(name string) error {
+	var (
+		tr  *Transport
+		err error
+	)
+
+	if tr, err = d.mdb.GetTransport(name); err != nil {
+		return err
+	}
+	res, err := d.mdb.tx.Exec("UPDATE domain SET transport = ? WHERE id = ?", tr.id, d.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				d.transport = tr
+			} else {
+				err = ErrMdbDomainNotFound
+			}
+		}
+	}
+	return err
+}
+
+// ClearTransport
+func (d *Domain) ClearTransport() error {
+	res, err := d.mdb.tx.Exec("UPDATE domain SET transport = NULL WHERE id = ?", d.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				d.transport = nil
+			} else {
+				err = ErrMdbDomainNotFound
+			}
+		}
+	}
+	return err
+}
 
 // SetVUid
 func (d *Domain) SetVUid(vuid int64) error {
@@ -453,14 +488,36 @@ func (d *Domain) SetVGid(vgid int64) error {
 
 // SetRclass
 func (d *Domain) SetRclass(rclass string) error {
-	var err error
+	var (
+		a   *Access
+		err error
+	)
 
-	res, err := d.mdb.tx.Exec("UPDATE domain SET rclass = ? WHERE id = ?", rclass, d.id)
+	if a, err = d.mdb.GetAccess(rclass); err != nil {
+		return err
+	}
+	res, err := d.mdb.tx.Exec("UPDATE domain SET access = ? WHERE id = ?", a.id, d.id)
 	if err == nil {
 		c, err := res.RowsAffected()
 		if err == nil {
 			if c == 1 {
-				d.rclass = rclass
+				d.access = a
+			} else {
+				err = ErrMdbDomainNotFound
+			}
+		}
+	}
+	return err
+}
+
+// ClearRclass
+func (d *Domain) ClearRclass() error {
+	res, err := d.mdb.tx.Exec("UPDATE domain SET access = NULL WHERE id = ?", d.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				d.access = nil
 			} else {
 				err = ErrMdbDomainNotFound
 			}
