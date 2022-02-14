@@ -46,7 +46,6 @@ CREATE TABLE "Domain" (
        access INTEGER,
        vuid INTEGER,		-- virtual UID for dovecot general mboxes
        vgid INTEGER,		-- virtual GID
-       rclass TEXT DEFAULT "DEFAULT", -- recipient restriction class
        CONSTRAINT dom_trans FOREIGN KEY(transport) REFERENCES Transport(id),
        CONSTRAINT dom_access FOREIGN KEY(access) REFERENCES Access(id)
        );
@@ -85,8 +84,6 @@ CREATE TABLE "Address" (
        localpart TEXT NOT NULL,
        domain INTEGER,
        transport INTEGER,
-       rclass TEXT,    -- recipient restriction class
-       	      	       -- if this is null, use domain rclass
        access INTEGER,
        CONSTRAINT addr_domain FOREIGN KEY(domain) REFERENCES Domain(id),
        CONSTRAINT addr_trans FOREIGN KEY(transport) REFERENCES Transport(id),
