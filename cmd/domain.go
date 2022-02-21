@@ -62,7 +62,7 @@ The optional class flag defines what the domain is used for, i.e. for virtual ma
 
 // deleteDomain do delete of a domains file
 var deleteDomain = &cobra.Command{
-	Use:   "domain ",
+	Use:   "domain name",
 	Short: "Delete an domain from the database.",
 	Long: `Delete an address domain from the database.
 All of the recipients pointed to by this name will be also deleted`,
@@ -142,7 +142,7 @@ func procDomain(tokens []string) error {
 		for _, opt := range tokens[1:] {
 			kv := strings.Split(opt, "=")
 			if len(kv) < 2 {
-				return fmt.Errorf("Field %s is not a key=value pair", opt)
+				return fmt.Errorf("domain import option %s is not a key=value pair", opt)
 			}
 			switch kv[0] {
 			case "class":
@@ -162,7 +162,7 @@ func procDomain(tokens []string) error {
 			case "rclass":
 				err = d.SetRclass(kv[1])
 			default:
-				return fmt.Errorf("Unknown field %s", kv[0])
+				return fmt.Errorf("Unknown domain import option %s", kv[0])
 			}
 			if err != nil {
 				break
@@ -260,8 +260,8 @@ func domainShow(cmd *cobra.Command, args []string) error {
 	if d, err = mdb.LookupDomain(args[0]); err != nil {
 		return err
 	}
-	cmd.Printf("Name:\t\t%s\nClass:\t\t%s\nTransport:\t%s\nAccess:\t\t%s\n",
-		d.String(), d.Class(), d.Transport(), d.Access())
+	cmd.Printf("Name:\t\t%s\nClass:\t\t%s\nTransport:\t%s\n",
+		d.Name(), d.Class(), d.Transport())
 	cmd.Printf("UserID:\t\t%s\nGroup ID:\t%s\nRestrictions:\t%s\n",
 		d.Vuid(), d.Vgid(), d.Rclass())
 	return nil

@@ -58,6 +58,30 @@ func Test_Address(t *testing.T) {
 		t.Errorf("Create DB: did not expect error output, got %s", errout)
 	}
 
+	// Add in some access and transport entries
+	args = []string{"-d", dbfile, "add", "access", "STALL", "x-stall"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add access STALL: unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add access STALL: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add access STALL: did not expect error output, got %s", errout)
+	}
+	args = []string{"-d", dbfile, "add", "access", "DUMP", "x-dump"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add access DUMP: unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add access DUMP: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add access DUMP: did not expect error output, got %s", errout)
+	}
+
 	// Add some addresses, first with just defaults
 	args = []string{"-d", dbfile, "add", "address", "bill@somewhere.org"} // using default class
 	out, errout, err = doTest(rootCmd, "", args)

@@ -17,7 +17,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	//"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -26,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/lieb/postdove/maildb"
-	// "github.com/spf13/cobra"
 )
 
 // Test_Domain
@@ -76,11 +74,47 @@ func Test_Domain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of somewhere.org in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tsomewhere.org\nClass:\t\tinternet\nTransport:\t--\nAccess:\t\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\tDEFAULT\n" {
+	if out != "Name:\t\tsomewhere.org\nClass:\t\tinternet\nTransport:\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\t--\n" {
 		t.Errorf("Show of somewhere.org in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
 		t.Errorf("show of somewhere.org in good DB: did not expect error output, got %s", errout)
+	}
+
+	// Add in some access and transport entries
+	args = []string{"-d", dbfile, "add", "access", "STALL", "x-stall"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add access STALL: unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add access STALL: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add access STALL: did not expect error output, got %s", errout)
+	}
+	args = []string{"-d", dbfile, "add", "access", "DUMP", "x-dump"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add access DUMP: unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add access DUMP: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add access DUMP: did not expect error output, got %s", errout)
+	}
+	args = []string{"-d", dbfile, "add", "transport", "relay",
+		"--transport", "smtp", "--nexthop", "foo.com:24"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add relay transport: unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add relay transport: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add realay transport: did not expect error output, got %s", errout)
 	}
 
 	// try to add home.net with too many args
@@ -115,7 +149,7 @@ func Test_Domain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nAccess:\t\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\tDEFAULT\n" {
+	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\t--\n" {
 		t.Errorf("Show of home.net in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -139,7 +173,7 @@ func Test_Domain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nAccess:\t\t--\nUserID:\t\t43\nGroup ID:\t88\nRestrictions:\tSTALL\n" {
+	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nUserID:\t\t43\nGroup ID:\t88\nRestrictions:\tSTALL\n" {
 		t.Errorf("Show of home.net in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -245,11 +279,11 @@ bill.org class=local
 	}
 
 	// export list to date...
-	exportList := "bill.org class=local, rclass=DEFAULT\n" +
+	exportList := "bill.org class=local\n" +
 		"dish.net class=relay, rclass=DUMP\n" +
-		"foo class=internet, rclass=DEFAULT\n" +
-		"run.com class=virtual, vuid=83, vgid=99, rclass=DEFAULT\n" +
-		"zip.com class=internet, rclass=DEFAULT\n"
+		"foo class=internet\n" +
+		"run.com class=virtual, vuid=83, vgid=99\n" +
+		"zip.com class=internet\n"
 	// now check the contents.
 	args = []string{"-d", dbfile, "export", "domain"}
 	out, errout, err = doTest(rootCmd, "", args)
@@ -277,8 +311,8 @@ bill.org class=local
 		t.Errorf("Export * domains: Expected no error output, got %s", errout)
 	}
 	// now check just *.com
-	exportList = "run.com class=virtual, vuid=83, vgid=99, rclass=DEFAULT\n" +
-		"zip.com class=internet, rclass=DEFAULT\n"
+	exportList = "run.com class=virtual, vuid=83, vgid=99\n" +
+		"zip.com class=internet\n"
 	args = []string{"-d", dbfile, "export", "domain", "*.com"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
