@@ -183,6 +183,7 @@ func TestDomain(t *testing.T) {
 		t.Errorf("Insert relay unexpectedly failed, %s", err)
 	}
 	mdb.End(&err)
+
 	// new transaction
 	mdb.Begin()
 	d, err = mdb.GetDomain("foo")
@@ -224,6 +225,46 @@ func TestDomain(t *testing.T) {
 			}
 		}
 	}
+
+	// Now clear fields
+	mdb.Begin()
+	d, err = mdb.GetDomain("foo")
+	if err != nil {
+		mdb.End(&err)
+		t.Errorf("Get foo: %s", err)
+	} else {
+		if err = d.ClearVUid(); err != nil {
+			t.Errorf("ClearVUid foo, %s", err)
+		}
+		if err = d.ClearVGid(); err != nil {
+			t.Errorf("ClearVGid foo, %s", err)
+		}
+		if err = d.ClearRclass(); err != nil {
+			t.Errorf("ClearRclass foo, %s", err)
+		}
+		if err = d.ClearTransport(); err != nil {
+			t.Errorf("ClearTransport foo, %s", err)
+		}
+		mdb.End(&err)
+		// now check it
+		if dn, err := mdb.LookupDomain("foo"); err != nil {
+			t.Errorf("Lookup foo after clears, %s", err)
+		} else {
+			if dn.Transport() != "--" {
+				t.Errorf("Domain.Transport(): expected --, got %s", dn.Transport())
+			}
+			if dn.Vuid() != "--" {
+				t.Errorf("Domain.Vuid(): expected --, got %s", dn.Vuid())
+			}
+			if dn.Vgid() != "--" {
+				t.Errorf("Domain.Vgid(): expected --, got %s", dn.Vgid())
+			}
+			if dn.Rclass() != "--" {
+				t.Errorf("Domain.Rclass(): expected --, got %s", dn.Rclass())
+			}
+		}
+	}
+
 	// Lookup something not there
 	d, err = mdb.LookupDomain("baz")
 	if err == nil {

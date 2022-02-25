@@ -110,7 +110,7 @@ func (d *Domain) Transport() string {
 	if d.transport != nil {
 		return d.transport.Name()
 	} else {
-		return "--" // shouldn't this really be "" ?
+		return "--"
 	}
 }
 
@@ -468,6 +468,24 @@ func (d *Domain) SetVUid(vuid int64) error {
 	return err
 }
 
+// ClearVUid
+func (d *Domain) ClearVUid() error {
+	var err error
+
+	res, err := d.mdb.tx.Exec("UPDATE domain SET vuid = NULL WHERE id = ?", d.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				d.vuid = sql.NullInt64{Valid: false}
+			} else {
+				err = ErrMdbDomainNotFound
+			}
+		}
+	}
+	return err
+}
+
 // SetVGid
 func (d *Domain) SetVGid(vgid int64) error {
 	var err error
@@ -478,6 +496,24 @@ func (d *Domain) SetVGid(vgid int64) error {
 		if err == nil {
 			if c == 1 {
 				d.vgid = sql.NullInt64{Valid: true, Int64: int64(vgid)}
+			} else {
+				err = ErrMdbDomainNotFound
+			}
+		}
+	}
+	return err
+}
+
+// ClearVGid
+func (d *Domain) ClearVGid() error {
+	var err error
+
+	res, err := d.mdb.tx.Exec("UPDATE domain SET vgid = NULL WHERE id = ?", d.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				d.vgid = sql.NullInt64{Valid: false}
 			} else {
 				err = ErrMdbDomainNotFound
 			}
