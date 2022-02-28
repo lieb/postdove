@@ -62,8 +62,8 @@ func TestAddress(t *testing.T) {
 			t.Errorf("insert of dmr: expected 1 addr, 0 domains, got %d, %d",
 				aCount, dCount)
 		}
-		if a.String() != "dmr" {
-			t.Errorf("dmr: bad String(), %s", a.String())
+		if a.Address() != "dmr" {
+			t.Errorf("dmr: bad String(), %s", a.Address())
 		}
 		if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>." {
 			t.Errorf("dmr: bad dump(), %s", a.dump())
@@ -90,8 +90,8 @@ func TestAddress(t *testing.T) {
 			t.Errorf("insert of mary@goof.com: expected 2 addr, 1 domain, got %d, %d",
 				aCount, dCount)
 		}
-		if a.String() != "mary@goof.com" {
-			t.Errorf("mary@goof.com: bad String(), %s", a.String())
+		if a.Address() != "mary@goof.com" {
+			t.Errorf("mary@goof.com: bad String(), %s", a.Address())
 		}
 		if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
 			t.Errorf("mary@goof.com: bad dump(), %s", a.dump())

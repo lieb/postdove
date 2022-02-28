@@ -57,8 +57,8 @@ func (a *Address) Id() int64 {
 	return a.id
 }
 
-// String
-func (a *Address) String() string {
+// Address
+func (a *Address) Address() string {
 	var (
 		line strings.Builder
 	)
@@ -97,7 +97,7 @@ func (a *Address) Export() string {
 		line strings.Builder
 	)
 
-	fmt.Fprintf(&line, "%s", a.String())
+	fmt.Fprintf(&line, "%s", a.Address())
 	if a.access != nil {
 		fmt.Fprintf(&line, " rclass=%s", a.access.Name())
 	} else {

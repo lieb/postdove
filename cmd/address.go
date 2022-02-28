@@ -217,7 +217,7 @@ func addressShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	cmd.Printf("Address:\t\t%s\nTransport:\t%s\nAccess:\t\t%s\n",
-		a.String(), a.Transport(), a.Access())
+		a.Address(), a.Transport(), a.Access())
 	cmd.Printf("Restrictions:\t%s\n", a.Rclass())
 	return nil
 }

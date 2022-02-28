@@ -47,7 +47,7 @@ func (vm *VMailbox) String() string {
 		line strings.Builder
 	)
 
-	fmt.Fprintf(&line, "%s:", vm.a.String())
+	fmt.Fprintf(&line, "%s:", vm.a.Address())
 	if vm.password.Valid {
 		fmt.Fprintf(&line, "{%s}%s:", vm.pw_type, vm.password.String)
 	} else {
@@ -88,7 +88,7 @@ func (vm *VMailbox) Export() string {
 		line strings.Builder
 	)
 
-	fmt.Fprintf(&line, "%s:", vm.a.String())
+	fmt.Fprintf(&line, "%s:", vm.a.Address())
 	if vm.password.Valid {
 		fmt.Fprintf(&line, "{%s}%s:", vm.pw_type, vm.password.String)
 	} else {
@@ -127,7 +127,7 @@ func (vm *VMailbox) Export() string {
 
 // User
 func (vm *VMailbox) User() string {
-	return vm.a.String()
+	return vm.a.Address()
 }
 
 // PwType

@@ -48,7 +48,7 @@ func (tg *Recipient) String() string {
 				fmt.Fprintf(&line, "@%s", tg.t.d.Name())
 			}
 		} else {
-			fmt.Fprintf(&line, "%s", tg.t.String())
+			fmt.Fprintf(&line, "%s", tg.t.Address())
 		}
 	} else if tg.ext.Valid {
 		fmt.Fprintf(&line, "%s", tg.ext.String)
@@ -118,9 +118,9 @@ func (al *Alias) String() string {
 	)
 
 	if al.addr.IsLocal() {
-		fmt.Fprintf(&line, "%s: ", al.addr.String())
+		fmt.Fprintf(&line, "%s: ", al.addr.Address())
 	} else {
-		fmt.Fprintf(&line, "%s ", al.addr.String())
+		fmt.Fprintf(&line, "%s ", al.addr.Address())
 	}
 	for _, r := range al.recips {
 		if commas > 0 {
