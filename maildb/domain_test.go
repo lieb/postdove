@@ -188,8 +188,8 @@ func TestDomain(t *testing.T) {
 	mdb.Begin()
 	d, err = mdb.GetDomain("foo")
 	if err != nil {
-		mdb.End(&err)
 		t.Errorf("Get foo: %s", err)
+		mdb.End(&err)
 	} else {
 		if err = d.SetVUid(53); err != nil {
 			t.Errorf("SetVUid foo, %s", err)
