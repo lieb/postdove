@@ -71,24 +71,20 @@ func (a *Address) Address() string {
 
 // Transport
 func (a *Address) Transport() string {
-	return "--"
-}
-
-// Access
-func (a *Address) Access() string {
-	return "--"
+	if a.transport != nil {
+		return a.transport.Name()
+	} else {
+		return "--"
+	}
 }
 
 // Rclass
 func (a *Address) Rclass() string {
-	var line strings.Builder
-
 	if a.access != nil {
-		fmt.Fprintf(&line, "%s", a.access.Name())
+		return a.access.Name()
 	} else {
-		fmt.Fprintf(&line, "--")
+		return "--"
 	}
-	return line.String()
 }
 
 // Export
@@ -105,30 +101,6 @@ func (a *Address) Export() string {
 	}
 	if a.transport != nil {
 		fmt.Fprintf(&line, ", transport=%s", a.transport.Name())
-	}
-	return line.String()
-}
-
-// dump
-func (a *Address) dump() string {
-	var (
-		line strings.Builder
-	)
-	fmt.Fprintf(&line, "id:%d, localpart: %s, ", a.id, a.localpart)
-	if a.d != nil {
-		fmt.Fprintf(&line, "domain id: %d, dname: %s, ", a.d.Id(), a.d.Name())
-	} else {
-		fmt.Fprintf(&line, "domain id: <NULL>, dname: <empty>, ")
-	}
-	if a.transport != nil {
-		fmt.Fprintf(&line, "transport: %s, ", a.transport.Name())
-	} else {
-		fmt.Fprintf(&line, "transport: <NULL>, ")
-	}
-	if a.access != nil {
-		fmt.Fprintf(&line, "rclass: %s, ", a.access.Name())
-	} else {
-		fmt.Fprintf(&line, "rclass: <NULL>.")
 	}
 	return line.String()
 }

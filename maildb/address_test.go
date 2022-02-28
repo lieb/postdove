@@ -50,6 +50,16 @@ func TestAddress(t *testing.T) {
 	}
 	defer mdb.Close()
 
+	// First add an access and transport so we can see if we can set them
+	mdb.Begin()
+	if _, err = mdb.InsertAccess("spam", "gooberfilter"); err != nil {
+		t.Errorf("Insert spam entry unexpectedly failed, %s", err)
+	}
+	if _, err = mdb.InsertTransport("relay", "relay", "localhost:56"); err != nil {
+		t.Errorf("Insert relay unexpectedly failed, %s", err)
+	}
+	mdb.End(&err)
+
 	// test basic local address insert
 	mdb.Begin()
 	a, err := mdb.InsertAddress("dmr")
@@ -63,10 +73,13 @@ func TestAddress(t *testing.T) {
 				aCount, dCount)
 		}
 		if a.Address() != "dmr" {
-			t.Errorf("dmr: bad String(), %s", a.Address())
+			t.Errorf("dmr: bad Address(), %s", a.Address())
 		}
-		if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>." {
-			t.Errorf("dmr: bad dump(), %s", a.dump())
+		if a.Transport() != "--" {
+			t.Errorf("dmr: expected transport --, got %s", a.Transport())
+		}
+		if a.Rclass() != "--" {
+			t.Errorf("dmr: expected rclass --, got %s", a.Rclass())
 		}
 	}
 
@@ -91,10 +104,13 @@ func TestAddress(t *testing.T) {
 				aCount, dCount)
 		}
 		if a.Address() != "mary@goof.com" {
-			t.Errorf("mary@goof.com: bad String(), %s", a.Address())
+			t.Errorf("mary@goof.com: bad Address(), %s", a.Address())
 		}
-		if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
-			t.Errorf("mary@goof.com: bad dump(), %s", a.dump())
+		if a.Transport() != "--" {
+			t.Errorf("mary@goof.com: expected transport --, got %s", a.Transport())
+		}
+		if a.Rclass() != "--" {
+			t.Errorf("mary@goof.com: expected rclass --, got %s", a.Rclass())
 		}
 	}
 
@@ -118,8 +134,14 @@ func TestAddress(t *testing.T) {
 			t.Errorf("insert of bill@goof.com: expected 3 addr, 1 domain, got %d, %d",
 				aCount, dCount)
 		}
-		if a.dump() != "id:3, localpart: bill, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
-			t.Errorf("bill@goof.com: bad dump(), %s", a.dump())
+		if a.Address() != "bill@goof.com" {
+			t.Errorf("bill@goof.com: bad Address(), %s", a.Address())
+		}
+		if a.Transport() != "--" {
+			t.Errorf("bill@goof.com: expected transport --, got %s", a.Transport())
+		}
+		if a.Rclass() != "--" {
+			t.Errorf("bill@goof.com: expected rclass --, got %s", a.Rclass())
 		}
 	}
 
@@ -148,8 +170,14 @@ func TestAddress(t *testing.T) {
 	if err != nil {
 		t.Errorf("lookup of dmr failed: %s", err)
 	}
-	if a.dump() != "id:1, localpart: dmr, domain id: <NULL>, dname: <empty>, transport: <NULL>, rclass: <NULL>." {
-		t.Errorf("dmr: bad dump(), %s", a.dump())
+	if a.Address() != "dmr" {
+		t.Errorf("dmr: bad Address(), %s", a.Address())
+	}
+	if a.Transport() != "--" {
+		t.Errorf("dmr: expected transport --, got %s", a.Transport())
+	}
+	if a.Rclass() != "--" {
+		t.Errorf("dmr: expected rclass --, got %s", a.Rclass())
 	}
 
 	// now delete it and check. We should have 3 addresses and 2 domains
@@ -165,8 +193,68 @@ func TestAddress(t *testing.T) {
 	if err != nil {
 		t.Errorf("lookup of mary@goof.com failed: %s", err)
 	}
-	if a.dump() != "id:2, localpart: mary, domain id: 1, dname: goof.com, transport: <NULL>, rclass: <NULL>." {
-		t.Errorf("mary@goof.com: bad dump(), %s", a.dump())
+	if a.Address() != "mary@goof.com" {
+		t.Errorf("mary@goof.com: bad Address(), %s", a.Address())
+	}
+	if a.Transport() != "--" {
+		t.Errorf("mary@goof.com: expected transport --, got %s", a.Transport())
+	}
+	if a.Rclass() != "--" {
+		t.Errorf("mary@goof.com: expected rclass --, got %s", a.Rclass())
+	}
+
+	// Set and clear Rclass and transport for poor mary
+	mdb.Begin()
+	a, err = mdb.GetAddress("mary@goof.com")
+	if err != nil {
+		t.Errorf("Get mary@goof.com: unexpected error %s", err)
+		mdb.End(&err)
+	} else {
+		if err = a.SetTransport("relay"); err != nil {
+			t.Errorf("mary@goof.com: SetTransport relay, %s", err)
+		}
+		if err = a.SetRclass("spam"); err != nil {
+			t.Errorf("mary@goof.com: SetRclass spam, %s", err)
+		}
+	}
+	mdb.End(&err)
+
+	a, err = mdb.LookupAddress("mary@goof.com")
+	if err != nil {
+		t.Errorf("lookup of mary@goof.com after sets failed: %s", err)
+	}
+	if a.Transport() != "relay" {
+		t.Errorf("mary@goof.com: expected transport relay, got %s", a.Transport())
+	}
+	if a.Rclass() != "spam" {
+		t.Errorf("mary@goof.com: expected rclass spam, got %s", a.Rclass())
+	}
+
+	// Now clear them
+	mdb.Begin()
+	a, err = mdb.GetAddress("mary@goof.com")
+	if err != nil {
+		t.Errorf("Get mary@goof.com to clear: unexpected error %s", err)
+		mdb.End(&err)
+	} else {
+		if err = a.ClearTransport(); err != nil {
+			t.Errorf("mary@goof.com: ClearTransport, %s", err)
+		}
+		if err = a.ClearRclass(); err != nil {
+			t.Errorf("mary@goof.com: ClearRclass, %s", err)
+		}
+	}
+	mdb.End(&err)
+
+	a, err = mdb.LookupAddress("mary@goof.com")
+	if err != nil {
+		t.Errorf("lookup of mary@goof.com failed: %s", err)
+	}
+	if a.Transport() != "--" {
+		t.Errorf("mary@goof.com: expected transport --, got %s", a.Transport())
+	}
+	if a.Rclass() != "--" {
+		t.Errorf("mary@goof.com: expected rclass --, got %s", a.Rclass())
 	}
 
 	// now delete it and check. We should have 2 addresses and 2 domains
