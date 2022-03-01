@@ -248,10 +248,10 @@ goofy
 		t.Errorf("Edit transport bogus: unexpected error, %s", err)
 	}
 	if out == "" {
-		t.Errorf("Edit transport empty: expected output, got none")
+		t.Errorf("Edit transport bogusd expected output, got none")
 	}
 	if errout == "" {
-		t.Errorf("Edit transport empty: expected error output, got none")
+		t.Errorf("Edit transport bogus: expected error output, got none")
 	}
 
 	// edit relay to remove nexthop

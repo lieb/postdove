@@ -216,8 +216,7 @@ func addressShow(cmd *cobra.Command, args []string) error {
 	if a, err = mdb.LookupAddress(args[0]); err != nil {
 		return err
 	}
-	cmd.Printf("Address:\t\t%s\nTransport:\t%s\nAccess:\t\t%s\n",
-		a.Address(), a.Transport(), a.Access())
-	cmd.Printf("Restrictions:\t%s\n", a.Rclass())
+	cmd.Printf("Address:\t\t%s\nTransport:\t%s\nRestrictions:\t%s\n",
+		a.Address(), a.Transport(), a.Rclass())
 	return nil
 }

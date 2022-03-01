@@ -179,8 +179,14 @@ func TestDomain(t *testing.T) {
 	if _, err = mdb.InsertAccess("spam", "gooberfilter"); err != nil {
 		t.Errorf("Insert spam entry unexpectedly failed, %s", err)
 	}
-	if _, err = mdb.InsertTransport("relay", "relay", "localhost:56"); err != nil {
+	if tr, err := mdb.InsertTransport("relay"); err != nil {
 		t.Errorf("Insert relay unexpectedly failed, %s", err)
+	} else {
+		if err = tr.SetTransport("relay"); err != nil {
+			t.Errorf("Insert relay: set transport relay failed, %s", err)
+		} else if err = tr.SetNexthop("localhost:56"); err != nil {
+			t.Errorf("Insert relay: set nexthop localhost:56 failed, %s", err)
+		}
 	}
 	mdb.End(&err)
 

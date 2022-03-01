@@ -99,7 +99,7 @@ func Test_Address(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of bill@somewhere.org in good DB: Unexpected error, %s", err)
 	}
-	if out != "Address:\t\tbill@somewhere.org\nTransport:\t--\nAccess:\t\t--\nRestrictions:\t--\n" {
+	if out != "Address:\t\tbill@somewhere.org\nTransport:\t--\nRestrictions:\t--\n" {
 		t.Errorf("Show of bill@somewhere.org in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -122,7 +122,7 @@ func Test_Address(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of postmaster in good DB: Unexpected error, %s", err)
 	}
-	if out != "Address:\t\tpostmaster\nTransport:\t--\nAccess:\t\t--\nRestrictions:\t--\n" {
+	if out != "Address:\t\tpostmaster\nTransport:\t--\nRestrictions:\t--\n" {
 		t.Errorf("Show of postmaster in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -146,7 +146,7 @@ func Test_Address(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of dave@somewhere.org in good DB: Unexpected error, %s", err)
 	}
-	if out != "Address:\t\tdave@somewhere.org\nTransport:\t--\nAccess:\t\t--\nRestrictions:\tDUMP\n" {
+	if out != "Address:\t\tdave@somewhere.org\nTransport:\t--\nRestrictions:\tDUMP\n" {
 		t.Errorf("Show of dave@somewhere.org in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -185,7 +185,7 @@ func Test_Address(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of bill@somewhere.org in good DB: Unexpected error, %s", err)
 	}
-	if out != "Address:\t\tbill@somewhere.org\nTransport:\t--\nAccess:\t\t--\nRestrictions:\tSTALL\n" {
+	if out != "Address:\t\tbill@somewhere.org\nTransport:\t--\nRestrictions:\tSTALL\n" {
 		t.Errorf("Show of bill@somewhere.org in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {

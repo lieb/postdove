@@ -22,7 +22,7 @@ package maildb
 
 import (
 	"database/sql"
-	//"fmt"
+	"fmt"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // do I really need this?
@@ -162,13 +162,10 @@ func (mdb *MailDB) GetTransport(name string) (*Transport, error) {
 }
 
 // InsertTransport
-// for now, empty string == NULL
-func (mdb *MailDB) InsertTransport(name string, transport string, nexthop string) (*Transport, error) {
+func (mdb *MailDB) InsertTransport(name string) (*Transport, error) {
 	var (
-		res   sql.Result
-		trans sql.NullString
-		next  sql.NullString
-		err   error
+		res sql.Result
+		err error
 	)
 	if name == "" {
 		return nil, ErrMdbBadName
@@ -176,18 +173,7 @@ func (mdb *MailDB) InsertTransport(name string, transport string, nexthop string
 	if mdb.tx == nil {
 		return nil, ErrMdbTransaction
 	}
-	if transport == "" {
-		trans = sql.NullString{Valid: false}
-	} else {
-		trans = sql.NullString{Valid: true, String: transport}
-	}
-	if nexthop == "" {
-		next = sql.NullString{Valid: false}
-	} else {
-		next = sql.NullString{Valid: true, String: nexthop}
-	}
-	res, err = mdb.tx.Exec("INSERT INTO transport (name, transport, nexthop) VALUES (?, ?, ?)",
-		name, trans, next)
+	res, err = mdb.tx.Exec("INSERT INTO transport (name) VALUES (?)", name)
 	if err != nil {
 		if IsErrConstraintUnique(err) {
 			err = ErrMdbDupTrans
@@ -195,11 +181,9 @@ func (mdb *MailDB) InsertTransport(name string, transport string, nexthop string
 	} else {
 		if trID, err := res.LastInsertId(); err == nil {
 			tr := &Transport{
-				mdb:       mdb,
-				id:        trID,
-				name:      name,
-				transport: trans,
-				nexthop:   next,
+				mdb:  mdb,
+				id:   trID,
+				name: name,
 			}
 			return tr, nil
 		}
@@ -217,7 +201,7 @@ func (tr *Transport) Transport() string {
 	if tr.transport.Valid {
 		return tr.transport.String
 	} else {
-		return ""
+		return "--"
 	}
 }
 
@@ -226,8 +210,26 @@ func (tr *Transport) Nexthop() string {
 	if tr.nexthop.Valid {
 		return tr.nexthop.String
 	} else {
-		return ""
+		return "--"
 	}
+}
+
+// Export
+func (tr *Transport) Export() string {
+	var (
+		line strings.Builder
+	)
+
+	fmt.Fprintf(&line, "%s ", tr.Name())
+	if tr.transport.Valid {
+		fmt.Fprintf(&line, "%s:", tr.transport.String)
+	} else {
+		fmt.Fprintf(&line, ":")
+	}
+	if tr.nexthop.Valid {
+		fmt.Fprintf(&line, "%s", tr.nexthop.String)
+	}
+	return line.String()
 }
 
 // SetTransport
@@ -241,7 +243,7 @@ func (tr *Transport) SetTransport(trans string) error {
 		return ErrMdbTransaction
 	}
 	if trans == "" {
-		transport = sql.NullString{Valid: false}
+		return ErrMdbArgStringEmpty
 	} else {
 		transport = sql.NullString{Valid: true, String: trans}
 	}
@@ -251,6 +253,25 @@ func (tr *Transport) SetTransport(trans string) error {
 		if err == nil {
 			if c == 1 {
 				tr.transport = transport
+			} else {
+				err = ErrMdbTransNotFound
+			}
+		}
+	}
+	return err
+}
+
+// ClearTransport
+func (tr *Transport) ClearTransport() error {
+	if tr.mdb.tx == nil {
+		return ErrMdbTransaction
+	}
+	res, err := tr.mdb.tx.Exec("UPDATE transport SET transport = NULL WHERE id = ?", tr.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				tr.transport = sql.NullString{Valid: false}
 			} else {
 				err = ErrMdbTransNotFound
 			}
@@ -270,7 +291,7 @@ func (tr *Transport) SetNexthop(hop string) error {
 		return ErrMdbTransaction
 	}
 	if hop == "" {
-		nexthop = sql.NullString{Valid: false}
+		return ErrMdbArgStringEmpty
 	} else {
 		nexthop = sql.NullString{Valid: true, String: hop}
 	}
@@ -280,6 +301,25 @@ func (tr *Transport) SetNexthop(hop string) error {
 		if err == nil {
 			if c == 1 {
 				tr.nexthop = nexthop
+			} else {
+				err = ErrMdbTransNotFound
+			}
+		}
+	}
+	return err
+}
+
+// ClearNexthop
+func (tr *Transport) ClearNexthop() error {
+	if tr.mdb.tx == nil {
+		return ErrMdbTransaction
+	}
+	res, err := tr.mdb.tx.Exec("UPDATE transport SET nexthop = NULL WHERE id = ?", tr.id)
+	if err == nil {
+		c, err := res.RowsAffected()
+		if err == nil {
+			if c == 1 {
+				tr.nexthop = sql.NullString{Valid: false}
 			} else {
 				err = ErrMdbTransNotFound
 			}
@@ -305,48 +345,3 @@ func (mdb *MailDB) DeleteTransport(name string) error {
 	}
 	return err
 }
-
-/*
-// NewTransport
-func (mdb *MailDB) NewTransport(t string) error {
-	var (
-		err     error
-		tr      *TransportParts
-		trans   sql.NullString
-		nexthop sql.NullString
-	)
-
-	if tr, err = DecodeTransport(t); err != nil {
-		return fmt.Errorf("NewTransport: %s", err)
-	}
-	if tr.transport == "" {
-		trans = sql.NullString{Valid: false}
-	} else {
-		trans = sql.NullString{Valid: true, String: tr.transport}
-	}
-	if tr.nexthop == "" {
-		nexthop = sql.NullString{Valid: false}
-	} else {
-		nexthop = sql.NullString{Valid: true, String: tr.nexthop}
-	}
-	// Enter a transaction for everything else
-	if mdb.tx, err = mdb.db.Begin(); err != nil {
-		return fmt.Errorf("MakeAlias: begin, %s", err)
-	}
-	defer func() {
-		if err == nil {
-			if err = mdb.tx.Commit(); err != nil {
-				panic(fmt.Errorf("MakeAlias: commit, %s", err)) // we are screwed
-			}
-		} else {
-			mdb.tx.Rollback()
-		}
-	}()
-	_, err = mdb.tx.Exec("INSERT INTO transport (transport, nexthop) VALUES( ?, ?)",
-		trans, nexthop)
-	if err != nil {
-		return fmt.Errorf("NewTransport: insert, %s", err)
-	}
-	return nil
-}
-*/

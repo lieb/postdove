@@ -44,6 +44,7 @@ var (
 	ErrMdbNoLocalPipe       = errors.New("no local pipe or redirect")
 	ErrMdbNoQuotedSpace     = errors.New("pipe with spaces requires quotes")
 	ErrMdbBadInclude        = errors.New("badly formed or empty include")
+	ErrMdbArgStringEmpty    = errors.New("Empty string not allowed here")
 	ErrMdbTransNoColon      = errors.New("No ':' separator")
 	ErrMdbAddressNotFound   = errors.New("address not found")
 	ErrMdbDomainNotFound    = errors.New("domain not found")

@@ -60,7 +60,7 @@ func Test_Transport(t *testing.T) {
 	}
 
 	// Try to insert an transport without a transaction
-	tr, err = mdb.InsertTransport("dovecot", "lmtp", "localhost:24")
+	tr, err = mdb.InsertTransport("dovecot")
 	if err == nil {
 		t.Errorf("Insert with no transaction did not fail")
 		return
@@ -71,12 +71,30 @@ func Test_Transport(t *testing.T) {
 
 	// Insert a transport
 	mdb.Begin()
-	tr, err = mdb.InsertTransport("dovecot", "lmtp", "localhost:24")
-	mdb.End(&err)
+	tr, err = mdb.InsertTransport("dovecot")
 	if err != nil {
 		t.Errorf("Insert transport dovecot: %s", err)
+		mdb.End(&err)
 		return
+	} else {
+		if tr.Name() != "dovecot" {
+			t.Errorf("Insert dovecot: bad Name(), got %s", tr.Name())
+		}
+		trans := tr.Transport()
+		if trans != "--" {
+			t.Errorf("Insert dovecot: expected --, got %s", trans)
+		}
+		hop := tr.Nexthop()
+		if hop != "--" {
+			t.Errorf("Insert dovecot: expected --, got %s", hop)
+		}
+		if err = tr.SetTransport("lmtp"); err != nil {
+		}
+		if err = tr.SetNexthop("localhost:24"); err != nil {
+		}
 	}
+	mdb.End(&err)
+
 	// See if it has the right fields
 	trans := tr.Transport()
 	if trans != "lmtp" {
@@ -97,11 +115,11 @@ func Test_Transport(t *testing.T) {
 		}
 		trans := tr.Transport()
 		if trans != "lmtp" {
-			t.Errorf("Lookup dovecot: did not set transport, got %s", trans)
+			t.Errorf("Lookup dovecot: expected transport lmtp, got %s", trans)
 		}
 		hop := tr.Nexthop()
 		if hop != "localhost:24" {
-			t.Errorf("Lookup dovecot: did not set nexthop, got %s", hop)
+			t.Errorf("Lookup dovecot: expected nexthop localhost:24, got %s", hop)
 		}
 
 	}
@@ -165,14 +183,14 @@ func Test_Transport(t *testing.T) {
 		mdb.End(&err)
 		return
 	}
-	// set transport and nexthop
-	err = tr.SetTransport("")
+	// clear transport and nexthop
+	err = tr.ClearTransport()
 	if err != nil {
-		t.Errorf("Set transport null: %s", err)
+		t.Errorf("Clear transport failed: %s", err)
 	}
-	err = tr.SetNexthop("")
+	err = tr.ClearNexthop()
 	if err != nil {
-		t.Errorf("Set nexthop null: %s", err)
+		t.Errorf("Clear nexthop failed: %s", err)
 	}
 	mdb.End(&err)
 
@@ -182,38 +200,46 @@ func Test_Transport(t *testing.T) {
 		t.Errorf("Lookup dovecot: %s", err)
 	} else {
 		trans := tr.Transport()
-		if trans != "" {
-			t.Errorf("Lookup dovecot: did not set transport to null, got %s", trans)
+		if trans != "--" {
+			t.Errorf("Lookup dovecot: expected transport --, got %s", trans)
 		}
 		hop := tr.Nexthop()
-		if hop != "" {
-			t.Errorf("Lookup dovecot: did not set nexthop to null, got %s", hop)
+		if hop != "--" {
+			t.Errorf("Lookup dovecot: expected nexthop --, got %s", hop)
 		}
 	}
 
 	// load some more transports and then find them
 	mdb.Begin()
-	tr, err = mdb.InsertTransport("spam", "", "/dev/null")
+	tr, err = mdb.InsertTransport("spam")
 	if err != nil {
-		mdb.End(&err)
 		t.Errorf("Insert spam: %s", err)
-		return
-	}
-	tr, err = mdb.InsertTransport("local", "mailbox", "")
-	if err != nil {
 		mdb.End(&err)
-		t.Errorf("Insert local: %s", err)
 		return
+	} else {
+		if err = tr.SetNexthop("/dev/null"); err != nil {
+			t.Errorf("Insert spam: set nexthop failed, %s", err)
+		}
+	}
+	tr, err = mdb.InsertTransport("local")
+	if err != nil {
+		t.Errorf("Insert local: %s", err)
+		mdb.End(&err)
+		return
+	} else {
+		if err = tr.SetTransport("mailbox"); err != nil {
+			t.Errorf("Insert local: set transport mailbox failed. %s", err)
+		}
 	}
 	mdb.End(&err)
 	if tl, err = mdb.FindTransport("dovecot"); err != nil {
 		t.Errorf("FindTransport dovecot, unexpected error, %s", err)
 	} else if len(tl) != 1 {
 		t.Errorf("FindTransport dovecot expected 1 result, got %d", len(tl))
-	} else if tl[0].Transport() != "" {
-		t.Errorf("FindTransport dovecot expected transport \"\", got %s", tl[0].Transport())
-	} else if tl[0].Nexthop() != "" {
-		t.Errorf("FindTransport dovecot expected nexthop \"\", got %s", tl[0].Nexthop())
+	} else if tl[0].Transport() != "--" {
+		t.Errorf("FindTransport dovecot expected transport \"--\", got %s", tl[0].Transport())
+	} else if tl[0].Nexthop() != "--" {
+		t.Errorf("FindTransport dovecot expected nexthop \"--\", got %s", tl[0].Nexthop())
 	}
 	if tl, err = mdb.FindTransport("bogus"); err != nil {
 		if err != ErrMdbTransNotFound {
@@ -228,9 +254,9 @@ func Test_Transport(t *testing.T) {
 		t.Errorf("FindTransport *, expected 3 entries, got %d", len(tl))
 	} else {
 		for _, tr = range tl {
-			if (tr.Name() == "dovecot" && tr.Transport() == "" && tr.Nexthop() == "") ||
-				(tr.Name() == "spam" && tr.Transport() == "" && tr.Nexthop() == "/dev/null") ||
-				(tr.Name() == "local" && tr.Transport() == "mailbox" && tr.Nexthop() == "") {
+			if (tr.Name() == "dovecot" && tr.Transport() == "--" && tr.Nexthop() == "--") ||
+				(tr.Name() == "spam" && tr.Transport() == "--" && tr.Nexthop() == "/dev/null") ||
+				(tr.Name() == "local" && tr.Transport() == "mailbox" && tr.Nexthop() == "--") {
 				continue
 			} else {
 				t.Errorf("FindTransport *, got unexpected %s or %s or %s",

@@ -208,7 +208,7 @@ func transportEdit(cmd *cobra.Command, args []string) error {
 	}
 	if err == nil {
 		if cmd.Flags().Changed("no-nexthop") {
-			err = tr.ClearNextHop()
+			err = tr.ClearNexthop()
 		} else if cmd.Flags().Changed("nexthop") {
 			fmt.Printf("edit nexthop to %s\n", transNexthop)
 			err = tr.SetNexthop(transNexthop)
