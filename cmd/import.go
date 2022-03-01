@@ -155,21 +155,23 @@ func procLine(line string, use ImportType, worker func([]string) error) error {
 
 	sp := strings.IndexAny(line, " \t") // split off first token
 	switch use {                        // requested line syntax
-	case SIMPLE: // key SP value string NL
+	case SIMPLE: // key SP value string NL | key NL
 		if sp == -1 {
-			return fmt.Errorf("only one token")
+			tokens = []string{line}
+		} else {
+			tokens = []string{line[0:sp],
+				strings.Trim(line[sp:], " \t")}
 		}
-		tokens = []string{line[0:sp],
-			strings.Trim(line[sp:], " \t")}
-	case POSTFIX: // key SP value [',' value]*
+	case POSTFIX: // key SP value [',' value]* NL | key NL
 		if sp == -1 {
-			return fmt.Errorf("only one token")
-		}
-		tokens = []string{line[0:sp]} // first the key by WS
-		vals := strings.FieldsFunc(line[sp:], onComma)
-		for _, v := range vals {
-			v = strings.Trim(v, " \t")
-			tokens = append(tokens, v) // then the tokens by ','
+			tokens = []string{line}
+		} else {
+			tokens = []string{line[0:sp]} // first the key by WS
+			vals := strings.FieldsFunc(line[sp:], onComma)
+			for _, v := range vals {
+				v = strings.Trim(v, " \t")
+				tokens = append(tokens, v) // then the tokens by ','
+			}
 		}
 	case ALIASES: // key ':' value [',' value]*
 		if !strings.Contains(line, ":") {

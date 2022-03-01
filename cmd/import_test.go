@@ -47,7 +47,7 @@ var testSuite = []Res{
 	{
 		test:    "Simple",
 		use:     SIMPLE,
-		errcode: "only one token",
+		errcode: "",
 		importFile: `
 # A comment
    # an indented comment

@@ -178,7 +178,7 @@ empty
 `
 	out, errout, err = doTest(rootCmd, inputStr, args)
 	if err != nil {
-		if !strings.Contains(err.Error(), "only one token") {
+		if !strings.Contains(err.Error(), "no recipient restriction key") {
 			t.Errorf("Import access unexpected error, %s", err)
 		}
 	}

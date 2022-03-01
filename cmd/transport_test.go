@@ -75,15 +75,14 @@ local local:
 	}
 
 	// test bad import just stdin is enough here...
-	args = []string{"-d", dbfile, "import", "access"}
+	args = []string{"-d", dbfile, "import", "transport"}
 	inputStr = `
 # some bogus transports
 bogus foo
-goofy
 `
 	out, errout, err = doTest(rootCmd, inputStr, args)
 	if err != nil {
-		if !strings.Contains(err.Error(), "only one token") {
+		if !strings.Contains(err.Error(), "must include ':'") {
 			t.Errorf("Import transport unexpected error, %s", err)
 		}
 	}
@@ -92,6 +91,23 @@ goofy
 	}
 	if errout == "" {
 		t.Errorf("Import transport: expected error output, got %s", errout)
+	}
+
+	inputStr = `
+# some bogus transports
+goofy
+`
+	out, errout, err = doTest(rootCmd, inputStr, args)
+	if err != nil {
+		if !strings.Contains(err.Error(), "key but no value") {
+			t.Errorf("Import transport unexpected error, %s", err)
+		}
+	}
+	if out == "" {
+		t.Errorf("Import transport: expected output, got none")
+	}
+	if errout == "" {
+		t.Errorf("Import transport: expected error output, got none")
 	}
 
 	// show "bogus foo" just in case...

@@ -238,7 +238,7 @@ func Test_Address(t *testing.T) {
 	args = []string{"-d", dbfile, "import", "address"}
 	inputStr := `
 # Just one to test stdin
-mike@bill.org rclass=HOME
+mike@bill.org
 `
 	out, errout, err = doTest(rootCmd, inputStr, args)
 	if err != nil {

@@ -125,6 +125,9 @@ func procTransport(tokens []string) error {
 		err error
 	)
 
+	if len(tokens) < 2 {
+		return fmt.Errorf("Transport has a key but no value specified")
+	}
 	if tr, err = mdb.InsertTransport(tokens[0]); err != nil {
 		return err
 	}
