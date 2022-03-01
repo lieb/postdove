@@ -26,13 +26,17 @@ import (
 )
 
 var (
-	pw_type  string
-	password string
-	uid      int64
-	gid      int64
-	home     string
-	quota    string
-	enable   bool
+	pw_type    string
+	password   string
+	noPassword bool
+	uid        int64
+	noUid      bool
+	gid        int64
+	noGid      bool
+	home       string
+	noHome     bool
+	quota      string
+	enable     bool
 )
 
 // importMailbox do import of an mailboxes file
@@ -121,19 +125,19 @@ func init() {
 		"Password encoding type")
 	editMailbox.Flags().StringVarP(&password, "password", "p", "",
 		"Account password")
-	editMailbox.Flags().StringVarP(&password, "no-password", "P", "",
+	editMailbox.Flags().BoolVarP(&noPassword, "no-password", "P", false,
 		"Clear Account password")
 	editMailbox.Flags().Int64VarP(&uid, "uid", "u", 99, // nobody user
 		"User ID for this mailbox")
-	editMailbox.Flags().Int64VarP(&uid, "no-uid", "U", 99, // nobody user
+	editMailbox.Flags().BoolVarP(&noUid, "no-uid", "U", false, // nobody user
 		"Clear User ID for this mailbox")
 	editMailbox.Flags().Int64VarP(&gid, "gid", "g", 99, // nobody group
 		"Group ID for this mailbox")
-	editMailbox.Flags().Int64VarP(&gid, "no-gid", "G", 99, // nobody group
+	editMailbox.Flags().BoolVarP(&noGid, "no-gid", "G", false, // nobody group
 		"Clear Group ID for this mailbox")
 	editMailbox.Flags().StringVarP(&home, "mail-home", "m", "",
 		"Home directory for mail")
-	editMailbox.Flags().StringVarP(&home, "no-mail-home", "M", "",
+	editMailbox.Flags().BoolVarP(&noHome, "no-mail-home", "M", false,
 		"Clear Home directory for mail")
 	editMailbox.Flags().StringVarP(&quota, "quota", "q", "",
 		"Storage quota")

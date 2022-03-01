@@ -171,8 +171,8 @@ func TestVMailboxCmd(t *testing.T) {
 	}
 
 	// and modify it with different args
-	args = []string{"-d", dbfile, "edit", "mailbox", "jeff@pobox.org", "-t", "", "--no-password", "funny", "-U", "42", "--no-gid", "75", "-M", "black_hole",
-		"-q", "reset", "--enable"}
+	args = []string{"-d", dbfile, "edit", "mailbox", "jeff@pobox.org", "-t", "",
+		"--no-password", "-U", "--no-gid", "-M", "-q", "reset", "--enable"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Edit jeff@pobox.org: Unexpected error, %s", err)
