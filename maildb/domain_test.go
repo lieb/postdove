@@ -190,6 +190,7 @@ func TestDomain(t *testing.T) {
 	}
 	mdb.End(&err)
 
+	var exportLine string = "foo class=internet, transport=relay, vuid=53, vgid=42, rclass=spam"
 	// new transaction
 	mdb.Begin()
 	d, err = mdb.GetDomain("foo")
@@ -228,6 +229,9 @@ func TestDomain(t *testing.T) {
 			}
 			if dn.Rclass() != "spam" {
 				t.Errorf("Domain.Rclass(): expected spam, got %s", dn.Rclass())
+			}
+			if dn.Export() != exportLine {
+				t.Errorf("Domain export: expected %s, got %s", exportLine, dn.Export())
 			}
 		}
 	}

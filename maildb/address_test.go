@@ -225,6 +225,7 @@ func TestAddress(t *testing.T) {
 	}
 	mdb.End(&err)
 
+	var exportLine string = "mary@goof.com rclass=spam, transport=relay"
 	a, err = mdb.LookupAddress("mary@goof.com")
 	if err != nil {
 		t.Errorf("lookup of mary@goof.com after sets failed: %s", err)
@@ -234,6 +235,9 @@ func TestAddress(t *testing.T) {
 	}
 	if a.Rclass() != "spam" {
 		t.Errorf("mary@goof.com: expected rclass spam, got %s", a.Rclass())
+	}
+	if a.Export() != exportLine {
+		t.Errorf("export mary@goof.com: expected %s, got %s", exportLine, a.Export())
 	}
 
 	// Now clear them
