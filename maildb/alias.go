@@ -35,9 +35,9 @@ type Recipient struct {
 	t   *Address
 }
 
-// String
+// Recipient
 // beware! virtual aliases cannot have /etc/aliases attributes (pipes and stuff)
-func (tg *Recipient) String() string {
+func (tg *Recipient) Recipient() string {
 	var (
 		line strings.Builder
 	)
@@ -108,10 +108,10 @@ func (mdb *MailDB) LookupAlias(alias string) ([]*Alias, error) {
 	return al_list, err
 }
 
-// String
+// Export
 // return a line for this alias
 // Note that /etc/aliases is a different syntax from virtual(5)
-func (al *Alias) String() string {
+func (al *Alias) Export() string {
 	var (
 		line   strings.Builder
 		commas int
@@ -126,7 +126,7 @@ func (al *Alias) String() string {
 		if commas > 0 {
 			fmt.Fprintf(&line, ", ")
 		}
-		fmt.Fprintf(&line, "%s", r.String())
+		fmt.Fprintf(&line, "%s", r.Recipient())
 		commas++
 	}
 	return line.String()

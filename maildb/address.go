@@ -96,8 +96,7 @@ func (a *Address) Export() string {
 	fmt.Fprintf(&line, "%s", a.Address())
 	if a.access != nil {
 		fmt.Fprintf(&line, " rclass=%s", a.access.Name())
-	} else {
-		fmt.Fprintf(&line, " rclass=\"\"")
+
 	}
 	if a.transport != nil {
 		fmt.Fprintf(&line, ", transport=%s", a.transport.Name())

@@ -160,7 +160,7 @@ func virtualExport(cmd *cobra.Command, args []string) error {
 	}
 	if alist, err = mdb.LookupAlias(virtual); err == nil {
 		for _, al := range alist {
-			cmd.Printf("%s\n", al.String())
+			cmd.Printf("%s\n", al.Export())
 		}
 	}
 	return err
@@ -235,7 +235,7 @@ func virtualShow(cmd *cobra.Command, args []string) error {
 		if al, err = a.Alias(); err == nil {
 			cmd.Printf("Virtual Alias:\t%s\nTargets:", args[0])
 			for _, t := range al.Targets() {
-				cmd.Printf("\t%s\n", t.String())
+				cmd.Printf("\t%s\n", t.Recipient())
 			}
 		}
 	}

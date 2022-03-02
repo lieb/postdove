@@ -101,9 +101,9 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: bozo@clown.com should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "bozo@clown.com rednose@clown.com" {
+		if al.Export() != "bozo@clown.com rednose@clown.com" {
 			t.Errorf("bozo@clown.com: expected \"bozo@clown.com rednose@clown.com\", got %s\n",
-				al.String())
+				al.Export())
 		}
 	}
 
@@ -125,9 +125,9 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: rebar should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "rebar: \"| cat > /dev/null\"" {
+		if al.Export() != "rebar: \"| cat > /dev/null\"" {
 			t.Errorf("rebar: expected 'rebar: \"| cat > /dev/null\"' got %s\n",
-				al.String())
+				al.Export())
 		}
 	}
 
@@ -149,9 +149,9 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: bozo@clown.com should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "bozo@clown.com rednose@clown.com, micky@clown.com" {
+		if al.Export() != "bozo@clown.com rednose@clown.com, micky@clown.com" {
 			t.Errorf("bozo@clown.com: expected \"bozo@clown.com rednose@clown.com, micky@clown.com\", got %s",
-				al.String())
+				al.Export())
 		}
 	}
 
@@ -173,9 +173,9 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: rebar should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "rebar: \"| cat > /dev/null\", /tmp/rubbish" {
+		if al.Export() != "rebar: \"| cat > /dev/null\", /tmp/rubbish" {
 			t.Errorf("rebar: expected \"rebar: \"| cat > /dev/null\", /tmp/rubbish\" got %s",
-				al.String())
+				al.Export())
 		}
 	}
 
@@ -221,9 +221,9 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: miller@office should be 1 alias, got %d", len(al_list))
 	} else {
 		al = al_list[0]
-		if al.String() != "miller@office dave@work, dave@home, dave@mobile" {
+		if al.Export() != "miller@office dave@work, dave@home, dave@mobile" {
 			t.Errorf("miller@office: expected \"miller@office dave@work, dave@home, dave@mobile\", got %s",
-				al.String())
+				al.Export())
 		}
 	}
 
@@ -253,8 +253,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: *@office should be 2 aliases, got %d", len(al_list))
 	} else {
 		for i, a := range al_list {
-			if a.String() != res[i] {
-				t.Errorf("expected %s, got %s", res[i], a.String())
+			if a.Export() != res[i] {
+				t.Errorf("expected %s, got %s", res[i], a.Export())
 			}
 		}
 	}
@@ -271,8 +271,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: *@clown.com should be 2 aliases, got %d", len(al_list))
 	} else {
 		for i, a := range al_list {
-			if a.String() != res[i] {
-				t.Errorf("expected %s, got %s", res[i], a.String())
+			if a.Export() != res[i] {
+				t.Errorf("expected %s, got %s", res[i], a.Export())
 			}
 		}
 	}
@@ -289,8 +289,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: steve@* should be 2 aliases, got %d", len(al_list))
 	} else {
 		for i, a := range al_list {
-			if a.String() != res[i] {
-				t.Errorf("expected %s, got %s", res[i], a.String())
+			if a.Export() != res[i] {
+				t.Errorf("expected %s, got %s", res[i], a.Export())
 			}
 		}
 	}
@@ -309,8 +309,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: *@* should be 2 aliases, got %d", len(al_list))
 	} else {
 		for i, a := range al_list {
-			if a.String() != res[i] {
-				t.Errorf("expected %s, got %s", res[i], a.String())
+			if a.Export() != res[i] {
+				t.Errorf("expected %s, got %s", res[i], a.Export())
 			}
 		}
 	}
@@ -327,8 +327,8 @@ func TestAliasOps(t *testing.T) {
 		t.Errorf("LookupAlias: * should be 2 aliases, got %d", len(al_list))
 	} else {
 		for i, a := range al_list {
-			if a.String() != res[i] {
-				t.Errorf("expected %s, got %s", res[i], a.String())
+			if a.Export() != res[i] {
+				t.Errorf("expected %s, got %s", res[i], a.Export())
 			}
 		}
 	}
@@ -343,9 +343,9 @@ func TestAliasOps(t *testing.T) {
 			len(al_list))
 	} else {
 		a := al_list[0]
-		if a.String() != "steve@office mike@shovel.org" {
+		if a.Export() != "steve@office mike@shovel.org" {
 			t.Errorf("Truncated steve@office should be \"steve@office mike@shovel.org\", got %s",
-				a.String())
+				a.Export())
 		}
 	}
 
@@ -394,9 +394,9 @@ func TestAliasOps(t *testing.T) {
 			len(al_list))
 	} else {
 		a := al_list[0]
-		if a.String() != "rebar: /tmp/rubbish" {
+		if a.Export() != "rebar: /tmp/rubbish" {
 			t.Errorf("Truncated rebar should be \"rebar: /tmp/rubbish\", got %s",
-				a.String())
+				a.Export())
 		}
 	}
 
@@ -475,7 +475,7 @@ func TestAliasOps(t *testing.T) {
 		al_list, err = mdb.LookupAlias("*@*")
 		if err == nil {
 			for _, al = range al_list {
-				t.Errorf("*@* should be gone: %s", al.String())
+				t.Errorf("*@* should be gone: %s", al.Export())
 			}
 		} else {
 			t.Errorf("LookupAlias of *@* after bad counts, %s", err)
@@ -483,7 +483,7 @@ func TestAliasOps(t *testing.T) {
 		al_list, err = mdb.LookupAlias("*")
 		if err == nil {
 			for _, al = range al_list {
-				t.Errorf("* should be gone: %s", al.String())
+				t.Errorf("* should be gone: %s", al.Export())
 			}
 		} else {
 			t.Errorf("LookupAlias of * after bad counts, %s", err)
@@ -509,9 +509,9 @@ func TestAliasOps(t *testing.T) {
 			len(al_list))
 	} else {
 		al := al_list[0]
-		if al.String() != "spam@soho.org dave+spam@soho.org" {
+		if al.Export() != "spam@soho.org dave+spam@soho.org" {
 			t.Errorf("Modified spam@soho.org should be \"spam@soho.org dave+spam@soho.org\", got %s",
-				al.String())
+				al.Export())
 		}
 	}
 
@@ -523,9 +523,9 @@ func TestAliasOps(t *testing.T) {
 			len(al_list))
 	} else {
 		al := al_list[0]
-		if al.String() != "junk@soho.org bill+junk@soho.org, sue+junk@soho.org" {
+		if al.Export() != "junk@soho.org bill+junk@soho.org, sue+junk@soho.org" {
 			t.Errorf("Modified spam@soho.org should be \"junk@soho.org bill+junk@soho.org, sue+junk@soho.org\", got %s",
-				al.String())
+				al.Export())
 		}
 	}
 }

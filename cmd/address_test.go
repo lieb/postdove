@@ -302,10 +302,10 @@ mike@bill.org
 	}
 
 	// export list to date...
-	exportList := "mike@bill.org rclass=\"\"\n" +
-		"gramma@cottage rclass=\"\"\n" +
-		"wolf@forest rclass=\"\"\n" +
-		"mary@little.lamb rclass=\"\"\n" +
+	exportList := "mike@bill.org\n" +
+		"gramma@cottage\n" +
+		"wolf@forest\n" +
+		"mary@little.lamb\n" +
 		"bill@somewhere.org rclass=STALL\n"
 	// now check the contents.
 	args = []string{"-d", dbfile, "export", "address"}
@@ -321,7 +321,7 @@ mike@bill.org
 		t.Errorf("Export addresses: Expected no error output, got %s", errout)
 	}
 	// now check using wildcard "*" for local addresses
-	exportList = "postmaster rclass=\"\"\n"
+	exportList = "postmaster\n"
 	args = []string{"-d", dbfile, "export", "address", "*"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
@@ -335,7 +335,7 @@ mike@bill.org
 		t.Errorf("Export * addresses: Expected no error output, got %s", errout)
 	}
 	// now check just *@*.org
-	exportList = "mike@bill.org rclass=\"\"\n" +
+	exportList = "mike@bill.org\n" +
 		"bill@somewhere.org rclass=STALL\n"
 	args = []string{"-d", dbfile, "export", "address", "*@*.org"}
 	out, errout, err = doTest(rootCmd, "", args)
