@@ -114,11 +114,11 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Add relay transport: did not expect output, got %s", out)
 	}
 	if errout != "" {
-		t.Errorf("Add realay transport: did not expect error output, got %s", errout)
+		t.Errorf("Add relay transport: did not expect error output, got %s", errout)
 	}
 
 	// try to add home.net with too many args
-	args = []string{"-d", dbfile, "add", "domain", "home.net", "-c", "virtual", "more_bits"} // using default class
+	args = []string{"-d", dbfile, "add", "domain", "home.net", "-c", "virtual", "more_bits"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err == nil {
 		t.Errorf("Bad add of home.net: Should have failed")
@@ -132,8 +132,9 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Bdd add home.net: Expected error output, got nothing")
 	}
 
-	// Now do it with correct args a "virtual" domain (for mailboxes)
-	args = []string{"-d", dbfile, "add", "domain", "home.net", "-c", "virtual"} // using default class
+	// Now do it with correct args a "virtual" domain (for mailboxes) and other args set
+	args = []string{"-d", dbfile, "add", "domain", "home.net", "-c", "virtual",
+		"-u", "88", "-g", "89", "-r", "STALL", "-t", "relay"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Add home.net: Unexpected error, %s", err)
@@ -149,7 +150,7 @@ func Test_Domain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\t--\n" {
+	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\trelay\nUserID:\t\t88\nGroup ID:\t89\nRestrictions:\tSTALL\n" {
 		t.Errorf("Show of home.net in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -157,7 +158,7 @@ func Test_Domain(t *testing.T) {
 	}
 
 	// Now edit it
-	args = []string{"-d", dbfile, "edit", "domain", "home.net", "--uid", "43", "--gid", "88", "--rclass", "STALL"}
+	args = []string{"-d", dbfile, "edit", "domain", "home.net", "--no-uid", "-G", "--no-rclass", "-T"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Edit home.net: Unexpected error, %s", err)
@@ -173,7 +174,7 @@ func Test_Domain(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of home.net in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nUserID:\t\t43\nGroup ID:\t88\nRestrictions:\tSTALL\n" {
+	if out != "Name:\t\thome.net\nClass:\t\tvirtual\nTransport:\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\t--\n" {
 		t.Errorf("Show of home.net in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {

@@ -26,8 +26,11 @@ import (
 )
 
 var (
-	localPart string
-	arClass   string
+	localPart    string
+	arClass      string
+	aNoRclass    bool
+	aTransport   string
+	aNoTransport bool
 )
 
 // importAddress do import of a addresss file
@@ -93,12 +96,22 @@ func init() {
 	addCmd.AddCommand(addAddress)
 	addAddress.Flags().StringVarP(&arClass, "rclass", "r", "",
 		"Restriction class for this address")
+	addAddress.Flags().BoolVarP(&aNoRclass, "no-rclass", "R", false,
+		"Clear restriction class for this address")
+	addAddress.Flags().StringVarP(&aTransport, "transport", "t", "",
+		"Transport to be used for this address")
+	addAddress.Flags().BoolVarP(&aNoTransport, "no-transport", "T", false,
+		"Clear transport used by this address")
 	deleteCmd.AddCommand(deleteAddress)
 	editCmd.AddCommand(editAddress)
-	/*	editAddress.Flags().StringVarP(&dClass, "local-part", "l", "",
-		"Local part (the mailbox name) for this address") */
 	editAddress.Flags().StringVarP(&arClass, "rclass", "r", "",
 		"Restriction class for this address")
+	editAddress.Flags().BoolVarP(&aNoRclass, "no-rclass", "R", false,
+		"Clear restriction class for this address")
+	editAddress.Flags().StringVarP(&aTransport, "transport", "t", "",
+		"Transport to be used for this address")
+	editAddress.Flags().BoolVarP(&aNoTransport, "no-transport", "T", false,
+		"Clear transport used by this address")
 	showCmd.AddCommand(showAddress)
 }
 
@@ -181,6 +194,9 @@ func addressAdd(cmd *cobra.Command, args []string) error {
 	if err == nil && cmd.Flags().Changed("rclass") {
 		err = a.SetRclass(arClass)
 	}
+	if err == nil && cmd.Flags().Changed("transport") {
+		err = a.SetTransport(aTransport)
+	}
 	return err
 }
 
@@ -200,8 +216,19 @@ func addressEdit(cmd *cobra.Command, args []string) error {
 	defer mdb.End(&err)
 
 	a, err = mdb.GetAddress(args[0])
-	if err == nil && cmd.Flags().Changed("rclass") {
-		err = a.SetRclass(arClass)
+	if err == nil {
+		if cmd.Flags().Changed("no-rclass") {
+			err = a.ClearRclass()
+		} else if cmd.Flags().Changed("rclass") {
+			err = a.SetRclass(arClass)
+		}
+	}
+	if err == nil {
+		if cmd.Flags().Changed("no-transport") {
+			err = a.ClearTransport()
+		} else if cmd.Flags().Changed("transport") {
+			err = a.SetTransport(aTransport)
+		}
 	}
 	return err
 }

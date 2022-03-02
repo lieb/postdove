@@ -26,10 +26,15 @@ import (
 )
 
 var (
-	dClass string
-	vUid   int64
-	vGid   int64
-	rClass string
+	dClass       string
+	vUid         int64
+	noVUid       bool
+	vGid         int64
+	noVGid       bool
+	rClass       string
+	noRClass     bool
+	dTransport   string
+	noDTransport bool
 )
 
 // importDomain do import of a domains file
@@ -102,16 +107,28 @@ func init() {
 		"Virtual group id for this domain")
 	addDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
 		"Restriction class for this domain")
+	addDomain.Flags().StringVarP(&dTransport, "transport", "t", "",
+		"Transport to use for this domain")
 	deleteCmd.AddCommand(deleteDomain)
 	editCmd.AddCommand(editDomain)
 	editDomain.Flags().StringVarP(&dClass, "class", "c", "",
 		"Domain class (internet, local, relay, virtual, vmailbox) for this domain")
 	editDomain.Flags().Int64VarP(&vUid, "uid", "u", 99, // nobody user (at least on RH/Fedora)
 		"Virtual user id for this domain")
+	editDomain.Flags().BoolVarP(&noVUid, "no-uid", "U", false,
+		"Clear virtual uid value for this domain")
 	editDomain.Flags().Int64VarP(&vGid, "gid", "g", 99, // nobody group (at least on RH/Fedora)
 		"Virtual group id for this domain")
+	editDomain.Flags().BoolVarP(&noVGid, "no-gid", "G", false,
+		"Clear virtual group id for this domain")
 	editDomain.Flags().StringVarP(&rClass, "rclass", "r", "",
 		"Restriction class for this domain")
+	editDomain.Flags().BoolVarP(&noRClass, "no-rclass", "R", false,
+		"Clear the restriction class for this domain")
+	editDomain.Flags().StringVarP(&dTransport, "transport", "t", "",
+		"Transport to use for this domain")
+	editDomain.Flags().BoolVarP(&noDTransport, "no-transport", "T", false,
+		"Clear the transport for this domain")
 	showCmd.AddCommand(showDomain)
 }
 
@@ -216,6 +233,9 @@ func domainAdd(cmd *cobra.Command, args []string) error {
 	if err == nil && cmd.Flags().Changed("rclass") {
 		err = d.SetRclass(rClass)
 	}
+	if err == nil && cmd.Flags().Changed("transport") {
+		err = d.SetTransport(dTransport)
+	}
 	return err
 }
 
@@ -238,14 +258,33 @@ func domainEdit(cmd *cobra.Command, args []string) error {
 	if err == nil && cmd.Flags().Changed("class") {
 		err = d.SetClass(dClass)
 	}
-	if err == nil && cmd.Flags().Changed("uid") {
-		err = d.SetVUid(vUid)
+	if err == nil {
+		if cmd.Flags().Changed("no-uid") {
+			err = d.ClearVUid()
+		} else if cmd.Flags().Changed("uid") {
+			err = d.SetVUid(vUid)
+		}
 	}
-	if err == nil && cmd.Flags().Changed("gid") {
-		err = d.SetVGid(vGid)
+	if err == nil {
+		if cmd.Flags().Changed("no-gid") {
+			err = d.ClearVGid()
+		} else if cmd.Flags().Changed("gid") {
+			err = d.SetVGid(vGid)
+		}
 	}
-	if err == nil && cmd.Flags().Changed("rclass") {
-		err = d.SetRclass(rClass)
+	if err == nil {
+		if cmd.Flags().Changed("no-rclass") {
+			err = d.ClearRclass()
+		} else if cmd.Flags().Changed("rclass") {
+			err = d.SetRclass(rClass)
+		}
+	}
+	if err == nil {
+		if cmd.Flags().Changed("no-transport") {
+			err = d.ClearTransport()
+		} else if cmd.Flags().Changed("transport") {
+			err = d.SetTransport(dTransport)
+		}
 	}
 	return err
 }

@@ -82,6 +82,19 @@ func Test_Address(t *testing.T) {
 		t.Errorf("Add access DUMP: did not expect error output, got %s", errout)
 	}
 
+	args = []string{"-d", dbfile, "add", "transport", "relay",
+		"--transport", "smtp", "--nexthop", "foo.com:24"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Add relay transport: unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Add relay transport: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Add relay transport: did not expect error output, got %s", errout)
+	}
+
 	// Add some addresses, first with just defaults
 	args = []string{"-d", dbfile, "add", "address", "bill@somewhere.org"} // using default class
 	out, errout, err = doTest(rootCmd, "", args)
@@ -130,7 +143,8 @@ func Test_Address(t *testing.T) {
 	}
 
 	// now with a valid option
-	args = []string{"-d", dbfile, "add", "address", "dave@somewhere.org", "--rclass", "DUMP"}
+	args = []string{"-d", dbfile, "add", "address", "dave@somewhere.org",
+		"--rclass", "DUMP", "--transport", "relay"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
 		t.Errorf("Add dave@somewhere.org: Unexpected error, %s", err)
@@ -146,7 +160,7 @@ func Test_Address(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of dave@somewhere.org in good DB: Unexpected error, %s", err)
 	}
-	if out != "Address:\t\tdave@somewhere.org\nTransport:\t--\nRestrictions:\tDUMP\n" {
+	if out != "Address:\t\tdave@somewhere.org\nTransport:\trelay\nRestrictions:\tDUMP\n" {
 		t.Errorf("Show of dave@somewhere.org in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -190,6 +204,30 @@ func Test_Address(t *testing.T) {
 	}
 	if errout != "" {
 		t.Errorf("Show of bill@somewhere.org in good DB: did not expect error output, got %s", errout)
+	}
+
+	// edit dave@somewhere to remove rclass and transport
+	args = []string{"-d", dbfile, "edit", "address", "dave@somewhere.org", "--no-rclass", "--no-transport"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Edit bill@somewhere.org: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Edit bill@somewhere.org: did not expect output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Edit bill@somewhere.org: did not expect error output, got %s", errout)
+	}
+	args = []string{"-d", dbfile, "show", "address", "dave@somewhere.org"} // now look it up
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("Show of dave@somewhere.org in good DB: Unexpected error, %s", err)
+	}
+	if out != "Address:\t\tdave@somewhere.org\nTransport:\t--\nRestrictions:\t--\n" {
+		t.Errorf("Show of dave@somewhere.org in good DB: did not get expected output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Show of dave@somewhere.org in good DB: did not expect error output, got %s", errout)
 	}
 
 	// delete a domain and check, starting with a non-existent
