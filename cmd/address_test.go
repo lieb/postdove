@@ -304,9 +304,10 @@ mike@bill.org
 	// export list to date...
 	exportList := "mike@bill.org\n" +
 		"gramma@cottage\n" +
-		"wolf@forest\n" +
-		"mary@little.lamb\n" +
-		"bill@somewhere.org rclass=STALL\n"
+		"wolf@forest rclass=STALL\n" +
+		"mary@little.lamb rclass=DUMP\n" +
+		"bill@somewhere.org rclass=STALL\n" +
+		"dave@wm.com\n"
 	// now check the contents.
 	args = []string{"-d", dbfile, "export", "address"}
 	out, errout, err = doTest(rootCmd, "", args)

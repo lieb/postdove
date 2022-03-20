@@ -57,6 +57,26 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Create DB: did not expect error output, got %s", errout)
 	}
 
+	// import some domains first from stdin
+	// Have to do this here because import is not reentrant due to cobra doing stuff
+	// with the cmd structs which, BTW, are global and intended (rightly or wrongly) to be
+	// one pass somewhere in initialization...
+	fmt.Printf("domains from stdin\n")
+	args = []string{"-d", dbfile, "import", "domain"}
+	inputStr := `
+# Just one to test stdin
+bill.org class=local
+`
+	out, errout, err = doTest(rootCmd, inputStr, args)
+	if err != nil {
+		t.Errorf("Import of bill.org: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("Import of bill.org: Expected no output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("Import of bill.org: Expected no error output, got %s", errout)
+	}
 	// Add some domains, first with just defaults
 	args = []string{"-d", dbfile, "add", "domain", "somewhere.org"} // using default class
 	out, errout, err = doTest(rootCmd, "", args)
@@ -82,39 +102,27 @@ func Test_Domain(t *testing.T) {
 	}
 
 	// Add in some access and transport entries
-	args = []string{"-d", dbfile, "add", "access", "STALL", "x-stall"}
+	args = []string{"-d", dbfile, "import", "access", "-i", "./test_access.txt"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
-		t.Errorf("Add access STALL: unexpected error, %s", err)
+		t.Errorf("Import of access rules from file: Unexpected error, %s", err)
 	}
 	if out != "" {
-		t.Errorf("Add access STALL: did not expect output, got %s", out)
+		t.Errorf("Import of access rules from file: Expected no output, got %s", out)
 	}
 	if errout != "" {
-		t.Errorf("Add access STALL: did not expect error output, got %s", errout)
+		t.Errorf("Import of access rules from file: Expected no error output, got %s", errout)
 	}
-	args = []string{"-d", dbfile, "add", "access", "DUMP", "x-dump"}
+	args = []string{"-d", dbfile, "import", "transport", "-i", "./test_transports.txt"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
-		t.Errorf("Add access DUMP: unexpected error, %s", err)
+		t.Errorf("Import of transports from file: Unexpected error, %s", err)
 	}
 	if out != "" {
-		t.Errorf("Add access DUMP: did not expect output, got %s", out)
+		t.Errorf("Import of transports from file: Expected no output, got %s", out)
 	}
 	if errout != "" {
-		t.Errorf("Add access DUMP: did not expect error output, got %s", errout)
-	}
-	args = []string{"-d", dbfile, "add", "transport", "relay",
-		"--transport", "smtp", "--nexthop", "foo.com:24"}
-	out, errout, err = doTest(rootCmd, "", args)
-	if err != nil {
-		t.Errorf("Add relay transport: unexpected error, %s", err)
-	}
-	if out != "" {
-		t.Errorf("Add relay transport: did not expect output, got %s", out)
-	}
-	if errout != "" {
-		t.Errorf("Add relay transport: did not expect error output, got %s", errout)
+		t.Errorf("Import of transports from file: Expected no error output, got %s", errout)
 	}
 
 	// try to add home.net with too many args
@@ -250,23 +258,8 @@ func Test_Domain(t *testing.T) {
 		t.Errorf("Show of home.net: Expected error output, got %s", errout)
 	}
 
-	// import some domains first from stdin
-	args = []string{"-d", dbfile, "import", "domain"}
-	inputStr := `
-# Just one to test stdin
-bill.org class=local
-`
-	out, errout, err = doTest(rootCmd, inputStr, args)
-	if err != nil {
-		t.Errorf("Import of bill.org: Unexpected error, %s", err)
-	}
-	if out != "" {
-		t.Errorf("Import of bill.org: Expected no output, got %s", out)
-	}
-	if errout != "" {
-		t.Errorf("Import of bill.org: Expected no error output, got %s", errout)
-	}
 	// and now a file
+	fmt.Printf("domains from file\n")
 	args = []string{"-d", dbfile, "import", "domain", "-i", "./test_domains.txt"}
 	out, errout, err = doTest(rootCmd, "", args)
 	if err != nil {
@@ -281,9 +274,12 @@ bill.org class=local
 
 	// export list to date...
 	exportList := "bill.org class=local\n" +
+		"cottage class=internet, rclass=permit\n" +
 		"dish.net class=relay, rclass=DUMP\n" +
 		"foo class=internet\n" +
+		"pobox.org class=vmailbox, transport=local\n" +
 		"run.com class=virtual, vuid=83, vgid=99\n" +
+		"wm.com class=internet, transport=trash\n" +
 		"zip.com class=internet\n"
 	// now check the contents.
 	args = []string{"-d", dbfile, "export", "domain"}
@@ -313,6 +309,7 @@ bill.org class=local
 	}
 	// now check just *.com
 	exportList = "run.com class=virtual, vuid=83, vgid=99\n" +
+		"wm.com class=internet, transport=trash\n" +
 		"zip.com class=internet\n"
 	args = []string{"-d", dbfile, "export", "domain", "*.com"}
 	out, errout, err = doTest(rootCmd, "", args)

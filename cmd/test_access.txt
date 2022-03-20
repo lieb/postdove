@@ -1,0 +1,5 @@
+# Generic restriction classes
+DUMP x-dump
+STALL x-stall
+permit x-permit
+reject x-reject

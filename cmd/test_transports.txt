@@ -1,0 +1,4 @@
+# nice generic transports
+relay smtp:faraway.net:25
+local lmtp:localhost:24
+trash :

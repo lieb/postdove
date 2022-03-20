@@ -4,3 +4,6 @@ foo class="" # takes the default class
 zip.com class=internet
 dish.net class=relay, rclass=DUMP
 run.com class=virtual, vuid=83, vgid=99
+pobox.org class=vmailbox, transport=local
+cottage rclass=permit
+wm.com transport=trash

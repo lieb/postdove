@@ -2,4 +2,5 @@
 
 mary@little.lamb  rclass=DUMP# Need to fix this special case
 wolf@forest rclass=STALL
-gramma@cottage
+gramma@cottage transport=relay
+dave@wm.com

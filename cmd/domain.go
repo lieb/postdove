@@ -178,6 +178,8 @@ func procDomain(tokens []string) error {
 				}
 			case "rclass":
 				err = d.SetRclass(kv[1])
+			case "transport":
+				err = d.SetTransport(kv[1])
 			default:
 				return fmt.Errorf("Unknown domain import option %s", kv[0])
 			}

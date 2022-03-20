@@ -145,9 +145,9 @@ func procAddress(tokens []string) error {
 			}
 			switch kv[0] {
 			case "rclass":
-				if kv[1] == "\"\"" { // fallback to domain rclass
-					err = a.SetRclass(kv[1])
-				}
+				err = a.SetRclass(kv[1])
+			case "transport":
+				err = a.SetTransport(kv[1])
 			default:
 				return fmt.Errorf("Unknown address field %s", kv[0])
 			}
