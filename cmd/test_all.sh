@@ -13,3 +13,4 @@ go test -run=TestAliasCmds
 go test -run=TestVMailboxCmd
 go test -run=Test_Create
 go test -run=TestCreateNoAliases
+go test -run=TestViews
