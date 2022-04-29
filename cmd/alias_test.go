@@ -302,7 +302,9 @@ spam: tech, jones@site
 	}
 
 	// export virtuals
-	exportList = "bruce@e-street paul@beatles, dorothy@oz\n" +
+	exportList = "abuse@disney walt+abuse@disney\n" +
+		"walt@disney spamalot\n" +
+		"bruce@e-street paul@beatles, dorothy@oz\n" +
 		"mark@fuse.org john@wayne, jimmy@stewart\n" +
 		"mickey@mouse minnie@mouse, goofy\n" +
 		"roadrunner@wb coyote@wb\n"

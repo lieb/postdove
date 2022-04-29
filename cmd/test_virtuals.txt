@@ -1,2 +1,4 @@
 mickey@mouse minnie@mouse, goofy
 roadrunner@wb coyote@wb
+walt@disney spamalot
+abuse@disney walt+abuse@disney
