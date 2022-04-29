@@ -52,6 +52,19 @@ CREATE TABLE "Domain" (
 
 CREATE UNIQUE INDEX domain_name ON domain(name);
 
+-- domain_access
+DROP VIEW IF EXISTS domain_access;
+CREATE VIEW domain_access AS
+       SELECT d.name AS domain_name, ac.action AS access_key
+       FROM domain AS d, access AS ac WHERE d.access IS ac.id;
+       
+-- domain_transport
+DROP VIEW IF EXISTS domain_transport;
+CREATE VIEW domain_transport AS
+       SELECT d.name AS domain_name,
+       	      COALESCE(tr.transport, '') || ':' || COALESCE(tr.nexthop, '') AS transport
+       FROM domain AS d, transport AS tr WHERE d.transport IS tr.id;
+       
 -- local_domain
 DROP VIEW IF EXISTS local_domain;
 CREATE VIEW local_domain AS
@@ -124,23 +137,36 @@ CREATE TRIGGER after_addr_del AFTER DELETE ON address
  BEGIN
   DELETE FROM domain WHERE id = OLD.domain; END;
 
+-- address_access
+-- view to handle access(5) processing
+DROP VIEW IF EXISTS address_access;
+CREATE VIEW "address_access" AS
+       SELECT a.localpart AS username, d.name AS domain_name,
+          CASE WHEN a.access IS NOT NULL
+	  THEN (SELECT action FROM access WHERE id=a.access)
+	  ELSE (SELECT action FROM access WHERE id=d.access)
+	  END AS access_key
+       FROM "Address" AS a
+          JOIN "Domain" AS d ON a.domain=d.id
+       WHERE a.access IS NOT NULL OR d.access IS NOT NULL;
+
 -- address_transport
 -- return transport for address/domain.
 -- if address doesn't have one, use its domain's transport
 DROP VIEW IF EXISTS "address_transport";
 CREATE VIEW "address_transport" AS
-   SELECT DISTINCT la.localpart as local, ld.name as dname,
-       CASE WHEN at.id IS NOT NULL
-          THEN coalesce (at.transport, '') || ':' ||
-	       coalesce (at.nexthop, '')
-	  ELSE coalesce (dt.transport, '') || ':' ||
-	       coalesce (dt.nexthop, '')
-	  END
-       AS trans
-FROM domain as	ld
-    LEFT JOIN address AS la ON	ld.id = la.domain
-    LEFT JOIN transport AS dt ON ld.transport = dt.id
-    LEFT JOIN transport AS at ON la.transport = at.id;
+   SELECT a.localpart as username, d.name as domain_name,
+       CASE WHEN a.transport IS NOT NULL
+          THEN (SELECT coalesce (tr.transport, '') || ':' ||
+	               coalesce (tr.nexthop, '') FROM transport AS tr
+		WHERE a.transport IS tr.id)
+	  ELSE (SELECT coalesce (tr.transport, '') || ':' ||
+	               coalesce (tr.nexthop, '') FROM transport AS tr
+		WHERE d.transport IS tr.id)
+	  END AS transport
+  FROM address AS a
+     JOIN domain AS d ON a.domain IS d.id
+  WHERE a.transport IS NOT NULL OR d.transport IS NOT NULL;
 
 -- Alias table
 DROP TABLE IF EXISTS "Alias";
@@ -178,7 +204,7 @@ CREATE TRIGGER after_alias_del_addr AFTER DELETE ON alias
 -- alias	recipient, recipient ...
 DROP VIEW IF EXISTS "etc_aliases";
 CREATE VIEW "etc_aliases" AS
-  SELECT aa.id AS aid, aa.localpart AS local,
+  SELECT DISTINCT aa.localpart AS local_user,
         (CASE WHEN al.target IS NULL
               THEN al.extension
               ELSE
@@ -188,30 +214,29 @@ CREATE VIEW "etc_aliases" AS
 			          (SELECT name FROM domain WHERE id = ta.domain)
 	                END)
 	       FROM address ta WHERE ta.id = al.target)
-         END) AS targ
-  FROM alias AS al
-  JOIN address AS aa ON al.address = aa.id AND aa.domain IS NULL;
+         END) AS recipient
+  FROM alias AS al, address AS aa
+  WHERE al.address IS aa.id AND aa.domain IS NULL;
 
 -- virt_alias models the virtuals file where a line is
 --   alias    recipient
 --
 DROP VIEW IF EXISTS "virt_alias";
 CREATE VIEW "virt_alias" AS
-  SELECT aa.localpart AS lcl,
-         ad.name AS name,
-	 ta.localpart ||
-		(CASE WHEN va.extension is not NULL
-		      THEN '+' || va.extension
-		      ELSE ''
-		 END) || (CASE WHEN td.id IS NULL
-			       THEN ''
-			       ELSE '@' || td.name
-			  END) AS valias
+       SELECT aa.localpart AS mailbox, ad.name AS domain_name,
+	      ta.localpart ||
+	      (CASE WHEN va.extension IS NOT NULL
+	      	    THEN '+' || va.extension
+		    ELSE ''
+	      END) ||
+	      (SELECT CASE WHEN ta.domain IS NULL
+		    THEN ''
+		    ELSE '@' || (SELECT name FROM domain WHERE id IS ta.domain)
+	      END) AS recipient
 	FROM Alias AS va
-	JOIN address AS ta ON (va.target = ta.id)
-	JOIN domain AS td ON (ta.domain = td.id)
 	JOIN address AS aa ON (va.address = aa.id)
-	JOIN domain AS ad ON (aa.domain != 0 AND aa.domain = ad.id);
+	JOIN domain AS ad ON (aa.domain = ad.id)
+	JOIN address AS ta ON (va.target = ta.id);
 
 -- vmailbox, dovecot user database
 DROP TABLE IF EXISTS "VMailbox";
@@ -262,19 +287,28 @@ CREATE TRIGGER after_del_mbox AFTER DELETE ON vmailbox
 -- with baked in constants. Uid and gid should be NOT NULL and map to
 -- the common passwd entry from sssd. home should be the dir under
 -- home_dir in dovecot's config.
+-- This view brings together all this together. It is used as the base for
+-- the specializes views and dovecot queries
 DROP VIEW IF EXISTS "user_mailbox";
 CREATE VIEW "user_mailbox" AS
-       select mb.id as id, a.localpart as username, d.name as domain,
-       	      '{' || mb.pw_type || '}' || coalesce(mb.password, '*') as pw,
-	      coalesce(mb.uid, coalesce(d.vuid, 99)) AS uid,
-	      coalesce(mb.gid, coalesce(d.vgid, 99)) AS gid,
-	      coalesce(mb.home, '') AS home,
-	      coalesce(mb.quota, '*:bytes=0') AS quota,
-       	      mb.enable as enable
-       from VMailbox as mb
-       	      join address as a on (a.id = mb.id)
-	      join domain as d on (a.domain = d.id);
+       SELECT mb.id AS id, a.localpart AS username, d.name AS domain,
+       	      '{' || mb.pw_type || '}' || COALESCE(mb.password, '*') AS password,
+	      COALESCE(mb.uid, COALESCE(d.vuid, 99)) AS uid,
+	      COALESCE(mb.gid, COALESCE(d.vgid, 99)) AS gid,
+	      COALESCE(mb.home, '') AS home,
+	      COALESCE(mb.quota, '*:bytes=0') AS quota_rule,
+       	      mb.enable AS enable
+       FROM VMailbox AS mb
+       	      JOIN address AS a ON (a.id = mb.id)
+	      JOIN domain AS d ON (a.domain = d.id);
 
+-- user_deny
+-- This query looks for denied (locked out) users
+DROP VIEW IF EXISTS "user_deny";
+CREATE VIEW "user_deny" AS
+     SELECT username, domain, 'true' AS deny
+     FROM user_mailbox WHERE enable = 0;
+     
 -- backscatter and catchall here are for example. I don't do it so
 -- scratch this bit.
 --

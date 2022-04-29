@@ -1,0 +1,10 @@
+# from /etc/aliases..
+bin:            root
+daemon:         root
+adm:            root
+lp:             root
+postmaster:	root
+info:           postmaster
+marketing:      postmaster
+# Person who should get root's mail
+root:          marc, bill@noc, "| cat - >/dev/null"
