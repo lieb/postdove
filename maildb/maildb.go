@@ -28,6 +28,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -383,10 +384,19 @@ func (mdb *MailDB) Close() {
 	mdb.db = nil
 }
 
+// QueryRes
+type QueryRes map[string]interface{}
+
+// NumColumns
+func (r QueryRes) NumColumns() int {
+	return reflect.ValueOf(r).Len()
+}
+
+//
 // Query
 // Generic query. Used mainly for testing
 // return empty slice for no rows
-func (mdb *MailDB) Query(q string) ([]map[string]interface{}, error) {
+func (mdb *MailDB) Query(q string) ([]QueryRes, error) {
 	var (
 	//err error
 	//rows
@@ -399,13 +409,13 @@ func (mdb *MailDB) Query(q string) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	results := make([]map[string]interface{}, 0)
+	results := make([]QueryRes, 0)
 	colVals := make([]interface{}, len(colNames))
 	for rows.Next() {
 		for i, _ := range colVals {
 			colVals[i] = new(interface{})
 		}
-		row := make(map[string]interface{}, len(colNames))
+		row := make(QueryRes, len(colNames))
 		if err = rows.Scan(colVals...); err != nil {
 			break
 		}
