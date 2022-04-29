@@ -258,30 +258,32 @@ SELECT id, name, class, transport, access, vuid, vgid FROM domain ORDER BY NAME`
 SELECT id, name, class, transport, access, vuid, vgid FROM domain WHERE name LIKE ? ORDER BY name`
 	}
 	rows, err := mdb.db.Query(q, name)
-	for rows.Next() {
-		d = &Domain{mdb: mdb}
-		if err = rows.Scan(&d.id, &d.name, &d.class, &trans,
-			&access, &d.vuid, &d.vgid); err != nil {
-			break
-		}
-		if access.Valid {
-			if ac, err := mdb.getAccessById(access.Int64); err == nil {
-				d.access = ac
+	if err == nil {
+		for rows.Next() {
+			d = &Domain{mdb: mdb}
+			if err = rows.Scan(&d.id, &d.name, &d.class, &trans,
+				&access, &d.vuid, &d.vgid); err != nil {
+				break
 			}
-		}
-		if err == nil && trans.Valid {
-			if tr, err := mdb.getTransportById(trans.Int64); err == nil {
-				d.transport = tr
+			if access.Valid {
+				if ac, err := mdb.getAccessById(access.Int64); err == nil {
+					d.access = ac
+				}
 			}
+			if err == nil && trans.Valid {
+				if tr, err := mdb.getTransportById(trans.Int64); err == nil {
+					d.transport = tr
+				}
+			}
+			if err != nil {
+				break
+			}
+			dl = append(dl, d)
 		}
-		if err != nil {
-			break
-		}
-		dl = append(dl, d)
-	}
-	if e := rows.Close(); e != nil {
-		if err == nil {
-			err = e
+		if e := rows.Close(); e != nil {
+			if err == nil {
+				err = e
+			}
 		}
 	}
 	if err == nil && len(dl) == 0 {
@@ -391,6 +393,7 @@ func (d *Domain) SetClass(class string) error {
 		dclass = Class(d.mdb.DefaultInt("domain.class"))
 	} else {
 		if dclass, ok = className[strings.ToLower(class)]; !ok {
+			fmt.Printf("Bad class (%s)\n", class)
 			return ErrMdbBadClass
 		}
 	}
