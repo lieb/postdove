@@ -1,5 +1,8 @@
 # default domains for localhost
+# NOTE we set vuid and vgid here so as to remove constants in views.
+# to change for a local environment, edit 'localhost'
+# We choose 99 here because it is 'nobody' on Fedora and many other Linux distros
 
-localhost	class=local
+localhost	class=local, vuid=99, vgid=99
 localhost.localdomain class=local
 

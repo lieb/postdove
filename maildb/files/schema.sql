@@ -299,8 +299,12 @@ DROP VIEW IF EXISTS "user_mailbox";
 CREATE VIEW "user_mailbox" AS
        SELECT mb.id AS id, a.localpart AS username, d.name AS domain,
        	      '{' || mb.pw_type || '}' || COALESCE(mb.password, '*') AS password,
-	      COALESCE(mb.uid, COALESCE(d.vuid, 99)) AS uid,
-	      COALESCE(mb.gid, COALESCE(d.vgid, 99)) AS gid,
+	      COALESCE(mb.uid,
+	              COALESCE(d.vuid,
+		              (SELECT vuid FROM domain WHERE name = 'localhost'))) AS uid,
+	      COALESCE(mb.gid,
+	             COALESCE(d.vgid,
+		              (SELECT vgid FROM domain WHERE name = 'localhost'))) AS gid,
 	      COALESCE(mb.home, '') AS home,
 	      COALESCE(mb.quota, '*:bytes=0') AS quota_rule,
        	      mb.enable AS enable

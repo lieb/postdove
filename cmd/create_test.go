@@ -64,7 +64,7 @@ func Test_Create(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of localhost in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tlocalhost\nClass:\t\tlocal\nTransport:\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\t--\n" {
+	if out != "Name:\t\tlocalhost\nClass:\t\tlocal\nTransport:\t--\nUserID:\t\t99\nGroup ID:\t99\nRestrictions:\t--\n" {
 		t.Errorf("Show of localhost in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -145,7 +145,7 @@ func Test_Create(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of localhost in good DB: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tlocalhost\nClass:\t\tlocal\nTransport:\t--\nUserID:\t\t--\nGroup ID:\t--\nRestrictions:\t--\n" {
+	if out != "Name:\t\tlocalhost\nClass:\t\tlocal\nTransport:\t--\nUserID:\t\t99\nGroup ID:\t99\nRestrictions:\t--\n" {
 		t.Errorf("Show of localhost in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
