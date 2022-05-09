@@ -65,6 +65,12 @@ CREATE VIEW domain_transport AS
        	      COALESCE(tr.transport, '') || ':' || COALESCE(tr.nexthop, '') AS transport
        FROM domain AS d, transport AS tr WHERE d.transport IS tr.id;
        
+-- internet_domain
+DROP VIEW IF EXISTS internet_domain;
+CREATE VIEW internet_domain AS
+  SELECT name FROM domain WHERE class = 0;
+
+
 -- local_domain
 DROP VIEW IF EXISTS local_domain;
 CREATE VIEW local_domain AS

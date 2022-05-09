@@ -244,6 +244,109 @@ func TestViews(t *testing.T) {
 
 	// Postfix related view testing
 
+	// Test domain classes
+	// first one that is correct followed by one that is not for that class
+	fmt.Printf("Domain class types\n")
+	q = `
+SELECT name FROM internet_domain WHERE name is 'zip.com'
+`
+	expectedRes = []maildb.QueryRes{
+		{
+			"name": "zip.com",
+		},
+	}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup localhost as local class: %s", err)
+	}
+
+	q = `
+SELECT name FROM internet_domain WHERE name is 'localhost'
+`
+	expectedRes = []maildb.QueryRes{}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup localhost as internet class: %s", err)
+	}
+
+	q = `
+SELECT name FROM local_domain WHERE name is 'localhost'
+`
+	expectedRes = []maildb.QueryRes{
+		{
+			"name": "localhost",
+		},
+	}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup localhost as local class: %s", err)
+	}
+
+	q = `
+SELECT name FROM local_domain WHERE name is 'dish.net'
+`
+	expectedRes = []maildb.QueryRes{}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup dish.net as local class: %s", err)
+	}
+
+	q = `
+SELECT name FROM relay_domain WHERE name is 'dish.net'
+`
+	expectedRes = []maildb.QueryRes{
+		{
+			"name": "dish.net",
+		},
+	}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup dish.net as relay class: %s", err)
+	}
+
+	q = `
+SELECT name FROM relay_domain WHERE name is 'localhost'
+`
+	expectedRes = []maildb.QueryRes{}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup localhost as relay class: %s", err)
+	}
+
+	q = `
+SELECT name FROM virtual_domain WHERE name is 'run.com'
+`
+	expectedRes = []maildb.QueryRes{
+		{
+			"name": "run.com",
+		},
+	}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup run.com as virtual class: %s", err)
+	}
+
+	q = `
+SELECT name FROM virtual_domain WHERE name is 'dish.net'
+`
+	expectedRes = []maildb.QueryRes{}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup dish.net as virtual class: %s", err)
+	}
+
+	q = `
+SELECT name FROM vmailbox_domain WHERE name is 'pobox.org'
+`
+	expectedRes = []maildb.QueryRes{
+		{
+			"name": "pobox.org",
+		},
+	}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup pobox.org as vmailbox class: %s", err)
+	}
+
+	q = `
+SELECT name FROM vmailbox_domain WHERE name is 'run.com'
+`
+	expectedRes = []maildb.QueryRes{}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Lookup run.com as vmailbox class: %s", err)
+	}
+
 	// Test Access restriction lookups
 	// used for smtpd_recipient_access and other postfix rules
 
