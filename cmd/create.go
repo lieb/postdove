@@ -87,8 +87,8 @@ func cmdCreate(cmd *cobra.Command, args []string) error {
 
 func init() {
 	createCmd.Flags().StringVarP(&schemaFile, "schema", "s",
-		"/etc/dovecot/private/dovecot.schema",
-		"Schema file to define tables of database")
+		"",
+		"Schema file to define tables of database. Default is built in.")
 	createCmd.Flags().StringVarP(&aliasFile, "alias", "a",
 		"/etc/aliases",
 		"RFC 2142 required aliases")

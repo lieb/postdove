@@ -1,8 +1,6 @@
 [root@pobox dovecot]# cat sql-deny.conf.ext 
-# rethink this. address.active is gone...
-# use vmailbox.enabled?
 driver = sqlite
-connect = /etc/dovecot/private/dovecot.sqlite
+connect = /etc/postfix/private/dovecot.sqlite
 
 password_query = SELECT '%u' FROM user_mailbox \
 WHERE username = '%n' AND domain = '%d' AND enable = 0

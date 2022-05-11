@@ -21,6 +21,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultDB = "/etc/postfix/private/dovecot.sqlite"
+
 var (
 	dbFile string
 	mdb    *maildb.MailDB
@@ -151,7 +153,7 @@ func closeDB(cmd *cobra.Command, args []string) {
 func init() {
 	// dbfile points to a database file that is other than the system default
 	rootCmd.PersistentFlags().StringVarP(&dbFile, "dbfile", "d",
-		"/etc/dovecot/private/dovecot.sqlite",
+		defaultDB,
 		"Sqlite3 database file")
 
 	// Create command and schema arg
