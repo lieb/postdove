@@ -2,6 +2,6 @@
 driver = sqlite
 connect = /etc/postfix/private/dovecot.sqlite
 
-password_query = SELECT '%u' FROM user_mailbox \
-WHERE username = '%n' AND domain = '%d' AND enable = 0
+password_query = SELECT '%u' FROM user_deny \
+WHERE username = '%n' AND domain = '%d'
 

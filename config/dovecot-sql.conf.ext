@@ -3,12 +3,12 @@ driver = sqlite
 connect = /etc/postfix/private/dovecot.sqlite
 default_pass_scheme = PLAIN
 
-password_query = SELECT username, domain, pw as password, \
+password_query = SELECT username, domain, password, \
   uid as userdb_uid, gid as userdb_gid, home as userdb_home, \
-  quota AS userdb_quota_rule \
+  quota_rule AS userdb_quota_rule \
   FROM user_mailbox WHERE username = '%n' AND domain = '%d'
 
-user_query = SELECT home, uid, gid, quota AS quota_rule \
+user_query = SELECT home, uid, gid, quota_rule \
   FROM user_mailbox WHERE username = '%n' AND domain = '%d'
 
 # For using doveadm -A:
