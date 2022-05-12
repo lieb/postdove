@@ -1,0 +1,8 @@
+# domain access restrictions
+# this follows the recipient access. This opens the wildcard domain which is not a good idea...
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT access_key FROM domain_access WHERE domain_name = '%d'

@@ -1,0 +1,7 @@
+# address transport
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT transport FROM address_transport WHERE username = '%u' AND domain_name = '%d'

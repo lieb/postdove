@@ -1,0 +1,7 @@
+# virtual domain
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT name FROM virtual_domain WHERE name = '%u'

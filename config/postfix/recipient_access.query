@@ -1,0 +1,7 @@
+# recipient access restrictions
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT access_key FROM address_access WHERE username = '%u' AND domain_name = '%d'

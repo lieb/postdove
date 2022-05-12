@@ -1,0 +1,7 @@
+# relay domain
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT name FROM relay_domain WHERE name = '%u'

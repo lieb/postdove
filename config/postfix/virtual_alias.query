@@ -1,0 +1,7 @@
+# virtual aliases
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT recipient FROM virt_alias WHERE mailbox = '%u' AND domain_name = '%d'

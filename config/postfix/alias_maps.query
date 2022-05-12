@@ -1,0 +1,7 @@
+# local aliases
+
+# open sqlite with foreign keys enabled to match postdove
+
+dbpath = /etc/postfix/private/dovecot.sqlite
+
+query = SELECT recipient FROM etc_aliases WHERE local_user = '%u'
