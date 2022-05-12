@@ -1,0 +1,32 @@
+--- master.cf.orig	2022-01-20 15:45:15.000000000 -0800
++++ master.cf	2022-05-04 15:43:36.186315306 -0700
+@@ -135,3 +135,29 @@
+ #mailman   unix  -       n       n       -       -       pipe
+ #  flags=FRX user=list argv=/usr/lib/mailman/bin/postfix-to-mailman.py
+ #  ${nexthop} ${user}
++
++# SPF Policy checker
++policyd-spf unix -     n       n       -       0       spawn
++       user=nobody argv=/usr/libexec/postfix/policyd-spf
++
++
++# amavis milter
++smtp-amavis unix -    -    n    -    2 smtp
++    -o smtp_data_done_timeout=1200
++    -o smtp_send_xforward_command=yes
++    -o disable_dns_lookups=yes
++127.0.0.1:10025 inet n    -    n    -    - smtpd
++    -o content_filter=
++    -o local_recipient_maps=
++    -o relay_recipient_maps=
++    -o smtpd_restriction_classes=
++    -o smtpd_client_restrictions=
++    -o smtpd_helo_restrictions=
++    -o smtpd_sender_restrictions=
++    -o smtpd_recipient_restrictions=permit_mynetworks,reject
++    -o mynetworks=127.0.0.0/8
++    -o strict_rfc821_envelopes=yes
++    -o smtpd_error_sleep_time=0
++    -o smtpd_soft_error_limit=1001
++    -o smtpd_hard_error_limit=1000
++

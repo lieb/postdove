@@ -1,0 +1,10 @@
+--- dovecot.conf.orig	2021-03-04 00:38:06.000000000 -0800
++++ dovecot.conf	2021-06-11 11:13:13.528375974 -0700
+@@ -22,6 +22,7 @@
+ 
+ # Protocols we want to be serving.
+ #protocols = imap pop3 lmtp submission
++protocols = imap lmtp
+ 
+ # A comma separated list of IPs or hosts where to listen in for connections. 
+ # "*" listens in all IPv4 interfaces, "::" listens in all IPv6 interfaces.

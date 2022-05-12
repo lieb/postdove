@@ -1,0 +1,18 @@
+--- 10-ssl.conf.orig	2021-12-07 14:14:35.000000000 -0800
++++ 10-ssl.conf	2021-06-11 15:56:03.458388966 -0700
+@@ -53,9 +53,9 @@
+ # Generate new params with `openssl dhparam -out /etc/dovecot/dh.pem 4096`
+ # Or migrate from old ssl-parameters.dat file with the command dovecot
+ # gives on startup when ssl_dh is unset.
+-#ssl_dh = </etc/dovecot/dh.pem
++ssl_dh = </etc/dovecot/dh.pem
+ 
+ # Minimum SSL protocol version to use. Potentially recognized values are SSLv3,
+# TLSv1, TLSv1.1, TLSv1.2 and TLSv1.3, depending on the OpenSSL version used.
+#
+# Dovecot also recognizes values ANY and LATEST. ANY matches with any protocol
+# version, and LATEST matches with the latest version supported by library.
+#ssl_min_protocol = TLSv1.2
+ 
+ # SSL ciphers to use, the default is:
+ #ssl_cipher_list = ALL:!kRSA:!SRP:!kDHd:!DSS:!aNULL:!eNULL:!EXPORT:!DES:!3DES:!MD5:!PSK:!RC4:!ADH:!LOW@STRENGTH

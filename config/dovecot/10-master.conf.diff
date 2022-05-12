@@ -1,0 +1,29 @@
+--- 10-master.conf.orig	2021-03-04 00:38:06.000000000 -0800
++++ 10-master.conf	2022-02-02 14:57:57.971163103 -0800
+@@ -19,8 +19,8 @@
+     #port = 143
+   }
+   inet_listener imaps {
+-    #port = 993
+-    #ssl = yes
++    port = 993
++    ssl = yes
+   }
+ 
+   # Number of connections to handle before starting a new process. Typically
+@@ -57,11 +57,11 @@
+   }
+ 
+   # Create inet listener only if you can't use the above UNIX socket
+-  #inet_listener lmtp {
++  inet_listener lmtp {
+     # Avoid making LMTP visible for the entire internet
+-    #address =
+-    #port = 
+-  #}
++    address = 127.0.0.1
++    port = 24
++  }
+ }
+ 
+ service imap {

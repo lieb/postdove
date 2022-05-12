@@ -1,0 +1,55 @@
+--- 10-mail.conf.orig	2021-01-07 09:38:00.000000000 -0800
++++ 10-mail.conf	2021-06-28 15:25:21.536356222 -0700
+@@ -28,6 +28,9 @@
+ # <doc/wiki/MailLocation.txt>
+ #
+ #mail_location = 
++mail_home = /srv/dovecot/%d/%n
++mail_location = maildir:~/Maildir:LAYOUT=fs
++
+ 
+ # If you need to set multiple mailbox locations or want to change default
+ # namespace settings, you can do it by defining namespace sections.
+@@ -105,8 +108,8 @@
+ # System user and group used to access mails. If you use multiple, userdb
+ # can override these by returning uid or gid fields. You can use either numbers
+ # or names. <doc/wiki/UserIds.txt>
+-#mail_uid =
+-#mail_gid =
++mail_uid = 2000
++mail_gid = 2000
+ 
+ # Group to enable temporarily for privileged operations. Currently this is
+ # used only with INBOX when either its initial creation or dotlocking fails.
+@@ -165,6 +168,11 @@
+ # methods. NFS users: flock doesn't work, remember to change mmap_disable.
+ #lock_method = fcntl
+ 
++# F_SETLKW does not work on virtiofs filesystem. Given the extremely
++# broken nature of POSIX locks, this is hard to make work on anything
++# other than local filesystems. BTW, flock works just fine in NFSv4.
++lock_method = flock
++
+ # Directory where mails can be temporarily stored. Usually it's used only for
+ # mails larger than >= 128 kB. It's used by various parts of Dovecot, for
+ # example LDA/LMTP while delivering large mails or zlib plugin for keeping
+@@ -175,15 +183,15 @@
+ # to make sure that users can't log in as daemons or other system users.
+ # Note that denying root logins is hardcoded to dovecot binary and can't
+ # be done even if first_valid_uid is set to 0.
+-#first_valid_uid = 500
+-#last_valid_uid = 0
++first_valid_uid = 1000
++#last_valid_uid = 65535
+ 
+ # Valid GID range for users, defaults to non-root/wheel. Users having
+ # non-valid GID as primary group ID aren't allowed to log in. If user
+ # belongs to supplementary groups with non-valid GIDs, those groups are
+ # not set.
+-#first_valid_gid = 1
+-#last_valid_gid = 0
++first_valid_gid = 1000
++#last_valid_gid = 65535
+ 
+ # Maximum allowed length for mail keyword name. It's only forced when trying
+ # to create new keywords.

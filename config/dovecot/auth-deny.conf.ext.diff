@@ -1,0 +1,24 @@
+--- auth-deny.conf.ext.orig	2020-05-12 08:44:05.000000000 -0700
++++ auth-deny.conf.ext	2021-02-13 17:15:12.823314906 -0800
+@@ -6,10 +6,17 @@
+ # checked first.
+ 
+ # Example deny passdb using passwd-file. You can use any passdb though.
++#passdb {
++#  driver = passwd-file
++#  deny = yes
++#
++#  # File contains a list of usernames, one per line
++#  args = /etc/dovecot/deny-users
++#}
+ passdb {
+-  driver = passwd-file
+-  deny = yes
++   driver = sql
++   deny = yes
+ 
+-  # File contains a list of usernames, one per line
+-  args = /etc/dovecot/deny-users
++   args = /etc/dovecot/sql-deny.conf.ext
+ }
++

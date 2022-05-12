@@ -1,0 +1,15 @@
+--- auth-sql.conf.ext.orig	2019-06-29 16:29:52.948197065 -0700
++++ auth-sql.conf.ext	2021-02-13 17:41:40.006609404 -0800
+@@ -12,9 +12,9 @@
+ # "prefetch" user database means that the passdb already provided the
+ # needed information and there's no need to do a separate userdb lookup.
+ # <doc/wiki/UserDatabase.Prefetch.txt>
+-#userdb {
+-#  driver = prefetch
+-#}
++userdb {
++  driver = prefetch
++}
+ 
+ userdb {
+   driver = sql

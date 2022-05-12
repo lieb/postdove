@@ -1,0 +1,25 @@
+--- 10-auth.conf.orig	2020-12-22 05:26:52.000000000 -0800
++++ 10-auth.conf	2021-06-10 17:04:35.276673882 -0700
+@@ -8,6 +8,7 @@
+ # connection is considered secure and plaintext authentication is allowed.
+ # See also ssl=required setting.
+ #disable_plaintext_auth = yes
++disable_plaintext_auth = no
+ 
+ # Authentication cache size (e.g. 10M). 0 means it's disabled. Note that
+ # bsdauth and PAM require cache_key to be set for caching to be used.
+@@ -116,11 +117,11 @@
+ #
+ # <doc/wiki/UserDatabase.txt>
+ 
+-#!include auth-deny.conf.ext
++!include auth-deny.conf.ext
+ #!include auth-master.conf.ext
+ 
+-!include auth-system.conf.ext
+-#!include auth-sql.conf.ext
++#!include auth-system.conf.ext
++!include auth-sql.conf.ext
+ #!include auth-ldap.conf.ext
+ #!include auth-passwdfile.conf.ext
+ #!include auth-checkpassword.conf.ext

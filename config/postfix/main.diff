@@ -1,0 +1,170 @@
+--- main.cf.orig	2022-01-20 15:46:33.000000000 -0800
++++ main.cf	2022-05-12 11:33:47.097353337 -0700
+@@ -66,6 +66,9 @@
+ #
+ data_directory = /var/lib/postfix
+ 
++# The query parameter sets up Sqlite database access
++query = sqlite:$config_directory/query
++
+ # QUEUE AND PROCESS OWNERSHIP
+ #
+ # The mail_owner parameter specifies the owner of the Postfix queue
+@@ -93,6 +96,7 @@
+ #
+ #myhostname = host.domain.tld
+ #myhostname = virtual.domain.tld
++myhostname = pobox.home.example.com
+ 
+ # The mydomain parameter specifies the local internet domain name.
+ # The default is to use $myhostname minus the first component.
+@@ -100,6 +104,9 @@
+ # parameters.
+ #
+ #mydomain = domain.tld
++# any domain we recieve email for dovecot for is our domain.
++#mydomain = $query/vmailbox_domain.query
++mydomain = example.com
+ 
+ # SENDING MAIL
+ # 
+@@ -129,10 +136,10 @@
+ #
+ # Note: you need to stop/start Postfix when this parameter changes.
+ #
+-#inet_interfaces = all
++inet_interfaces = all
+ #inet_interfaces = $myhostname
+ #inet_interfaces = $myhostname, localhost
+-inet_interfaces = localhost
++#inet_interfaces = localhost
+ 
+ # Enable IPv4, and IPv6 if supported
+ inet_protocols = all
+@@ -180,10 +187,12 @@
+ #
+ # See also below, section "REJECTING MAIL FOR UNKNOWN LOCAL USERS".
+ #
+-mydestination = $myhostname, localhost.$mydomain, localhost
++#mydestination = $myhostname, localhost.$mydomain, localhost
+ #mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain
+ #mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain,
+ #	mail.$mydomain, www.$mydomain, ftp.$mydomain
++mydestination = $query/mydestination.query, $mydomain
++
+ 
+ # REJECTING MAIL FOR UNKNOWN LOCAL USERS
+ #
+@@ -241,6 +250,44 @@
+ 
+ # TRUST AND RELAY CONTROL
+ 
++## in file sample-smtpd.cf to connect to greylister (sqlgrey).           
++#                                                                       
++#smtpd_recipient_restrictions =                                          
++#     reject_invalid_hostname
++#     reject_non_fqdn_recipient                                        
++#     reject_non_fqdn_sender                                           
++#     reject_unknown_sender_domain                                     
++#     reject_unknown_recipient_domain                                  
++#     reject_multi_recipient_bounce                                    
++#     reject_unauth_pipelining
++#     permit_mynetworks                                                
++#     reject_unauth_destination                                        
++#     reject_rbl_client zen.spamhaus.org
++#     check_policy_service unix:private/policyd-spf
++#     check_policy_service inet:127.0.0.1:2501
++#     reject_non_fqdn_hostname                                         
++#     reject_invalid_hostname                                          
++#     $query/recipient_access.query
++# uncomment below only for wildcard domain access. not a good idea...
++#     $query/domain_access.query
++#     permit                                                           
++#
++#policyd-spf_time_limit = 3600
++#
++## DKIM linkage for verifying and signing email
++## DMARC (sock 8893) runs last!
++#
++#smtpd_milters          = inet:127.0.0.1:8891, inet:127.0.0.1:8893
++#non_smtpd_milters      = $smtpd_milters
++#milter_default_action  = accept
++#
++ 
++#smtpd_restriction_classes = x-reject x-permit x-hold
++#
++#x-reject = reject-stuff
++#x-permit = permit-stuff
++#x-hold = hold-stuff
++
+ # The mynetworks parameter specifies the list of "trusted" SMTP
+ # clients that have more privileges than "strangers".
+ #
+@@ -281,6 +328,7 @@
+ # (the value on the table right-hand side is not used).
+ #
+ #mynetworks = 168.100.3.0/28, 127.0.0.0/8
++mynetworks = 192.168.2.0/24, 127.0.0.0/8
+ #mynetworks = $config_directory/mynetworks
+ #mynetworks = hash:/etc/postfix/network_table
+ 
+@@ -313,6 +361,8 @@
+ # permit_mx_backup restriction description in postconf(5).
+ #
+ #relay_domains = $mydestination
++#relay_domains = $query/relay_domain.query
++#relay_recipient_maps = $query/relay_recipients.query
+ 
+ # INTERNET OR INTRANET
+ 
+@@ -348,6 +398,7 @@
+ # a user@domain.tld address.
+ # 
+ #relay_recipient_maps = hash:/etc/postfix/relay_recipients
++#relay_recipient_maps = $query/relay_recipients.query
+ 
+ # INPUT RATE CONTROL
+ #
+@@ -384,6 +435,7 @@
+ # TRANSPORT MAP
+ #
+ # See the discussion in the ADDRESS_REWRITING_README document.
++transport_maps = $query/transport_maps.query
+ 
+ # ALIAS DATABASE
+ #
+@@ -402,9 +454,16 @@
+ # "postfix reload" to eliminate the delay.
+ #
+ #alias_maps = dbm:/etc/aliases
+-alias_maps = hash:/etc/aliases
++#alias_maps = hash:/etc/aliases
+ #alias_maps = hash:/etc/aliases, nis:mail.aliases
+ #alias_maps = netinfo:/aliases
++alias_maps = $query/alias_maps.query
++
++# Virtual aliases
++#virtual_alias_domains = $query/virtual_domain.query
++virtual_alias_maps = $query/virtual_alias.query
++virtual_mailbox_domains = $query/virtual_domain.query
++#virtual_mailbox_maps = $query/virtual_mailbox.query
+ 
+ # The alias_database parameter specifies the alias database(s) that
+ # are built with "newaliases" or "sendmail -bi".  This is a separate
+@@ -413,7 +472,7 @@
+ #
+ #alias_database = dbm:/etc/aliases
+ #alias_database = dbm:/etc/mail/aliases
+-alias_database = hash:/etc/aliases
++#alias_database = hash:/etc/aliases
+ #alias_database = hash:/etc/aliases, hash:/opt/majordomo/aliases
+ 
+ # ADDRESS EXTENSIONS (e.g., user+foo)
+@@ -736,3 +795,7 @@
+ smtp_tls_security_level = may
+ meta_directory = /etc/postfix
+ shlib_directory = /usr/lib64/postfix
++
++# amavis linkage for content screening
++content_filter=smtp-amavis:[127.0.0.1]:10024
++
