@@ -1,0 +1,18 @@
+
+module dove 1.0;
+
+require {
+	type dovecot_auth_t;
+	type virtiofs_t;
+	type dovecot_etc_t;
+	type dovecot_t;
+	class file { append getattr read write };
+	class dir { read write };
+}
+
+#============= dovecot_auth_t ==============
+allow dovecot_auth_t dovecot_etc_t:file write;
+
+#============= dovecot_t ==============
+allow dovecot_t virtiofs_t:dir { read write };
+allow dovecot_t virtiofs_t:file { append getattr read write };

@@ -1,0 +1,22 @@
+
+module my-auth 1.0;
+
+require {
+	type postfix_etc_t;
+	type dovecot_etc_t;
+	type dovecot_auth_t;
+	class file { getattr lock open read write };
+	class dir search;
+}
+
+#============= dovecot_auth_t ==============
+
+#!!!! This avc is allowed in the current policy
+allow dovecot_auth_t dovecot_etc_t:file write;
+
+#!!!! This avc is allowed in the current policy
+allow dovecot_auth_t postfix_etc_t:dir search;
+
+#!!!! This avc is allowed in the current policy
+allow dovecot_auth_t postfix_etc_t:file { getattr open read write };
+allow dovecot_auth_t postfix_etc_t:file lock;
