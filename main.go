@@ -18,6 +18,8 @@ package main
 
 import "github.com/lieb/postdove/cmd"
 
+//go:generate bash set_version.sh
+
 func main() {
 	cmd.Execute()
 }

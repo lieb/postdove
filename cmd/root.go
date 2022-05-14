@@ -17,15 +17,22 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	_ "embed"
+	"os"
+
 	"github.com/lieb/postdove/maildb"
 	"github.com/spf13/cobra"
 )
 
+//go:embed version.txt
+var Version string
+
 const defaultDB = "/etc/postfix/private/dovecot.sqlite"
 
 var (
-	dbFile string
-	mdb    *maildb.MailDB
+	dbFile        string
+	reportVersion bool
+	mdb           *maildb.MailDB
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -35,8 +42,14 @@ var rootCmd = &cobra.Command{
 	Short: "A management tool for aliases and mail users of postfix and dovecot",
 	Long: `Postdove is a management tool to manage the sqlite database file that
 is used by postfix to manage aliases, domains, and delivery and by dovecot to 
-manage email user IMAP/POP3 email accounts`,
-	PersistentPreRunE: openDB,
+manage email user IMAP/POP3 email accounts.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Flags().Changed("version") {
+			cmd.Printf("Version: %s", Version)
+			os.Exit(0)
+		}
+		return openDB(cmd, args)
+	},
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run:               cmdTUI,
@@ -155,6 +168,11 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&dbFile, "dbfile", "d",
 		defaultDB,
 		"Sqlite3 database file")
+
+	// Report version
+	rootCmd.PersistentFlags().BoolVarP(&reportVersion, "version", "v",
+		false,
+		"Report Postdove version and exit")
 
 	// Create command and schema arg
 	rootCmd.AddCommand(createCmd)
