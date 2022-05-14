@@ -90,8 +90,8 @@ func init() {
 		"",
 		"Schema file to define tables of database. Default is built in.")
 	createCmd.Flags().StringVarP(&aliasFile, "alias", "a",
-		"/etc/aliases",
-		"RFC 2142 required aliases")
+		"",
+		"RFC 2142 required aliases. Default is built in.")
 	createCmd.Flags().BoolVarP(&aliasLoad, "no-aliases", "A", false,
 		"Do not load RFC 2142 aliases")
 	createCmd.Flags().StringVarP(&domainsFile, "local", "l",
