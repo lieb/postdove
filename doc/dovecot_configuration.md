@@ -22,6 +22,7 @@ Those files are located and maintained in our repository.
 As mentioned above, there is little to change in this file.
 
 ```bash
+[root@pobox ~]# cd /etc/dovecot
 [root@pobox dovecot]# diff -u ./dovecot.conf.orig ./dovecot.conf
 --- ./dovecot.conf.orig 2021-03-04 00:38:06.000000000 -0800
 +++ ./dovecot.conf      2021-06-11 11:13:13.528375974 -0700
@@ -85,7 +86,8 @@ This change enables *imaps* via its port and enables SSL for it.
 This enables *lmtp* for the whole net.
 However, my whole net is just my home network.
 One should not do this on a larger net and especially not on a host that is directly
-addressable on the public network. I may change this later back to the defaults.
+addressable on the public network unless they really want the *virtual vandals* pillaging their mailstore.
+I may change this later back to the defaults.
 
 ## conf.d/10-mail.conf
 The core of the running server is configured here.
@@ -109,6 +111,8 @@ root@pobox dovecot]# diff -u ./conf.d/10-mail.conf.orig ./conf.d/10-mail.conf
 
 All the work setting up the filesystems is so this bit of configuration works.
 The `mail_home` directive sets the *root* of the mailstore tree.
+The `%d` is the domain name for the virtual domain, in this case, `example.com`.
+The `%n` is the mailbox name, in this case, `bill`.
 This is set up so that `bill@example.com` will have a home for his mail at
 `/srv/dovecot/example.com/bill`. The `mail_location` directive places email in
 `srv/dovecot/example.com/bill/Maildir` and its format will be *maildir* which
@@ -117,6 +121,8 @@ will store small files more efficiently than other, more traditional filesystems
 
 This does not preclude having `dovecot` from using a different location.
 The user record in the database can override this if desired.
+
+Next set up the default user and group IDs for when all else fails to identify one.
 
 ```bash 
 @@ -105,8 +108,8 @@
@@ -141,6 +147,8 @@ that these values be set.
 I have set them to `2000` arbitrarily to get them out of the way of any active numbers.
 In this configuration, they should never be used by `dovecot`
 other than to annoy the administrator.
+
+The server also wants to know the legal ranges for user and group IDs.
 
 ```bash 
 @@ -175,15 +178,15 @@
@@ -168,7 +176,7 @@ other than to annoy the administrator.
 These values are the authentication boundaries. I set the first valid value
 to `1000` because **Fedora** sets its first non-system value to `1000`.
 The maximum value is the highest 16 bit uid/gid. Linux has long since made
-these numbers 32 bit but there is always some crufty bit of code that did not
+these numbers 32 bit but there is always some crufty bits of code that did not
 get the memo.
 
 ## conf.d/10-ssl.conf
@@ -229,6 +237,8 @@ This does not prevent other forms of (encrypted) authorization which always work
 If you are ok with the passwords being recognizable in the database, this will
 work just fine.
 
+Now set up authorization methods, both those we want and those we do not want.
+
  ```bash
 @@ -116,11 +117,11 @@
  #
@@ -285,6 +295,7 @@ authentication has been done. Note the comments below on how the query is
 constructed.
 
 ## conf.d/auth-deny.conf.ext
+We also change the method for denying access.
 
 ```bash
 [root@pobox dovecot]# diff -u ./conf.d/auth-deny.conf.ext.orig ./conf.d/auth-deny.conf.ext
@@ -327,25 +338,27 @@ To avoid complex and/or obscure SQL queries, we use *views* in the
 database to handle all the complexity in the database and just leave
 a simple SQL statement for the `dovecot` configuration.
 
+The following files can be found in the `config` directory of the source. They are copied
+to the `/etc/dovecot` system directory.
+
 ### dovecot-sql.conf.ext
 
 ```bash
-[root@pobox dovecot]# cat dovecot-sql.conf.ext 
+# cat /etc/dovecot/dovecot-sql.conf.ext 
 driver = sqlite
-connect = /etc/dovecot/private/dovecot.sqlite
+connect = /etc/dovecot/private/postdove.sqlite
 default_pass_scheme = PLAIN
 
-password_query = SELECT username, domain, pw as password, \
+password_query = SELECT username, domain, password, \
   uid as userdb_uid, gid as userdb_gid, home as userdb_home, \
-  quota AS userdb_quota_rule \
+  quota_rule AS userdb_quota_rule \
   FROM user_mailbox WHERE username = '%n' AND domain = '%d'
 
-user_query = SELECT home, uid, gid, quota AS quota_rule \
+user_query = SELECT home, uid, gid, quota_rule \
   FROM user_mailbox WHERE username = '%n' AND domain = '%d'
 
 # For using doveadm -A:
 iterate_query = SELECT username, domain FROM user_mailbox
-
 
 ```
 
@@ -354,7 +367,7 @@ There are two queries here. One for the `password_query` and the other for the
 Note that from above, we have enabled *prefetch*.
 Normally, a `password_query` would only have the user name and password and
 leave the rest to the `user_query`.
-In *prefetch* mode we can that extra information fetched as well in the same query.
+In *prefetch* mode we can get that extra information fetched as well in the same query.
 However, there is an obscure `dovecot` wrinkle ( I had a less kind word once
 I figured it out...).
 Arguments to the `WHERE` clause have substitution strings, `%n` for user name
@@ -373,14 +386,12 @@ the `quota_rule` in the `user_query`.
 ### sql-deny.conf.ext
 
 ```bash
-[root@pobox dovecot]# cat sql-deny.conf.ext 
-# rethink this. address.active is gone...
-# use vmailbox.enabled?
+# cat /etc/dovecot/sql-deny.conf.ext 
 driver = sqlite
-connect = /etc/dovecot/private/dovecot.sqlite
+connect = /etc/dovecot/private/postdove.sqlite
 
-password_query = SELECT '%u' FROM user_mailbox \
-WHERE username = '%n' AND domain = '%d' AND enable = 0
+password_query = SELECT deny FROM user_deny \
+WHERE username = '%n' AND domain = '%d'
 ```
 
 This is a simple query that returns a result if the user has been disabled and nothing if it is active.

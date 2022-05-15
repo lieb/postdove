@@ -24,6 +24,22 @@ LABEL=suntan_str    /home         btrfs   defaults,subvol=home    1 2
 
 You will notice that the *bind* mounts make `/home` and `/srv/dovecot` which are on different
 BTRFS volume sets available in one place for the NFS server.
+
+NFSv4 can only export from a single directory for security reasons.
+This is the purpose of the *bind* mounts.
+This is what we have on `suntan`.
+```bash
+[root@suntan ~]# ls -l /nfs4exports/
+total 0
+drwxr-xr-t. 1     97     97  66 Jun 18 08:44 dovecot
+drwxr-xr-x. 1 root   root   174 Feb 11  2019 home
+```
+
+Note that the owner and group of `dovecot` is `97`.
+This is the uid/gid pair assigned by the **Fedora** install of `dovecot` package on `pobox` and may/will be different on another distribution.
+No matter, we use what the install assigns.
+We do not see the user name here because we are looking at it from `suntan` not `pobox`.
+
 The NFS server uses `/etc/exports` to export filesystems.
 
 ```bash
@@ -52,21 +68,8 @@ the DNS server own the static mapping instead of the DHCP server.
 This issue comes up because our `pobox` VM is coming up in parallel within the
 booting of `suntan`, its host.
 
-NFSv4 can only export from a single directory for security reasons.
-This is the purpose of the *bind* mounts.
-This is what we have on `suntan`.
-```bash
-[root@suntan ~]# ls -l /nfs4exports/
-total 0
-drwxr-xr-t. 1     97     97  66 Jun 18 08:44 dovecot
-drwxr-xr-x. 1 root   root   174 Feb 11  2019 home
-```
-Note that the owner and group of `dovecot` is `97`.
-This is the uid/gid pair assigned by the **Fedora** install of `dovecot` package on `pobox` and may/will be different on another distribution.
-No matter, we use what the install assigns.
-We do not see the user name here because we are looking at it from `suntan` not `pobox`.
-
 We are now done with filesystems on `suntan`.
+
 
 ## Automounting
 On the `pobox` side we have to properly mount the export.
@@ -99,7 +102,7 @@ First `/etc/auto.master`:
 This is how I set up access via the `/etc/auto.suntan` file.
 There are two things to note here. First, all automounts from `suntan` will happen
 under `/mnt/suntan` and second, `--timeout=30` will keep a mount active for only
-30 seconds of idle. This is useful should any of the players, the server, a client, or the network go a way. if set up this way, everything gets properly reset.
+30 seconds of idle. This is useful should any of the players, the server, a client, or the network go away. if set up this way, everything gets properly reset after everything comes back.
 This line also references `/etc/auto.suntan` any time a process attempts to access
 any files under `/mnt/suntan`. To see what those accesses are we look at
 `/etc/auto.suntan`.
@@ -139,7 +142,7 @@ drwxrwxrwt. 1   97   97 unconfined_u:object_r:var_t:s0         26 Jun 16 16:24 e
 
 For those unfamiliar with *selinux* labels, the `-Z` option to `ls` is displaying
 the label in the field following the familiar *group* field. It is four fields
-separated by a `:`.
+separated by a colon(`:`).
 This configuration shows `var_t` as the label which is used for services that keep
 their data files in `/var`.
 What each means is not important here except to see how the label changes as displayed on `pobox`.

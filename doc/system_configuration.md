@@ -4,7 +4,7 @@ I chose a VM rather than a container because a VM has its own IP address and
 network stack and therefore is independent of where it is hosted.
 The VM only has the standard **Fedora**
 system users and one administrator account. The `root` account has login
-disabled and the administrator account (which can `sudo`) requires `ssh` authorized key for login.
+disabled and the administrator account (which can `sudo`) requires `ssh` authorized keys for login.
 
 Email has been traditionally stored in either `/var/mail` or `/var/spool/mail`.
 Typically, local mail inboxes have been located here since the days before networking on UNIX systems.
@@ -13,21 +13,22 @@ They either deposit incoming mail in the user's home directory or in a central p
 often not even on the same system as the user. Our server is a black box server that only provides access via IMAP/POP3.
 There are a number of options for configuring the email store in the VM:
 * The first and worst choice is to have the mail store within the VM image.
-The only data kept in the VM image are configuration files and system management databases.
-All user files are located somewhere else. In short, a hosted VM is not like a standalone host.
+The only data that should be kept in the VM image are configuration files and system management databases.
+All user files should be located somewhere else. In short, a hosted VM is not like a standalone host.
 * The mail store can be a mounted remote filesystem.
 The typical choice is either Samba or NFS.
 The configuration of either is no different for a VM than it is for a typical networked system.
 The only caveat is that if NFS is chosen, it should require NFSv4 or higher.
 The version 3 protocol has been deprecated from **Fedora** and other distributions because of its well known weaknesses
 but there are still a few legacy setups around.
-Our configuration is NFSv4.1.
-* The third choice is a virtual filesystem provided by the hypervisor. **Fedora** uses KVM/QUMU so there are two choices.
+Our initial configuration was NFSv4.1.
+* The third choice is a virtual filesystem provided by the hypervisor. **Fedora** uses KVM/QEMU so there are two choices.
 A virtual filesystem is based within the hypervisor itself rather than traversing the network stack.
 Up until recent kernels and QEMU emulator versions, the only virtual filesystem, called *VirtFS*, was based on the 9P remote file protocol
 from the Plan9 operating system.
 Although the concept was cleaner and access confined, unlike a network filesystem,
-the protocol has proved to be not very efficient, in fact, much slower than NFSv4.
+the protocol has proved to be not very efficient, in fact, much slower than NFSv4 which requires the network
+stack.
 Recent kernels and QEMU have a replacement called *Virtio-FS* which uses the FUSE filesystem infrastructure.
 Its performance is almost as fast as a local filesystem.
 More important, it is fully POSIX compliant which none of the network based protocols support.
@@ -35,7 +36,7 @@ More important, it is fully POSIX compliant which none of the network based prot
 Our configuration started over NFSv4 but has since migrated to *Virtio-FS*.
 We document both because every installation is different.
 
-## The players
+## The Players
 We refer to a number of systems and directories throughout this document.
 To clarify which is which, these are the players:
 * `example.com` This is the usual example substitute as a disguise for my own domain.
@@ -49,24 +50,23 @@ In normal DNS conditions, this name would be a CNAME to `pobox` but there are so
 that will not accept a CNAME so it is managed as an ordinary A record.
 Its full name is `pobox.home.example.com`. We shorten the name(s) for simplicity.
 * `suntan` is my home file/service server. It is the host for `pobox`.
-* `nighthawk` is a client workstation which I will use as a standin for everything else from our smartphones to my desktop workstation.
+* `starlight` is a client workstation that I use for development and testing. I will use it as a standin for everything else from our smartphones to my desktop workstation.
 * `/nfs4exports` is the directory on `suntan` that the NFSv4 server is restricted to for exports.
 Each entry here is a *bind* mount of portions of the server's filesystem elsewhere.
 * `/srv/dovecot` This is the mount point on both `suntan` and `pobox` for the
 mail store.
-On `suntan` it is mounted as a sub-volume of one of the RAID1 disk sets.
+On `suntan` it is mounted as a sub-volume of one of the RAID1 filesystems.
 On `pobox` it is either the *autofs* managed mountpoint or the *virtiofs* mount of that sub-volume.
-* `/srv/dovecot/example.com` is the base directory for the IMAP accounts for the domain on both `suntan` and `pobox`.
-Individual home directories for users are only located on `suntan` and are not
-associated with the email configuration. Users only use `suntan` itself for home
-directories.
+* `/srv/dovecot/example.com` is the base directory for the IMAP accounts for the `example.com` virtual mailbox domain on both `suntan` and `pobox`.
+There are individual home directories for users located on `suntan` but they are not
+associated with the email configuration. Ordinary login users only use `suntan` itself for home directories.
 
 ## Network Configuration
 Network configuration is outside the scope of this discussion. It has simply set up
 so all systems have DNS names, assigned IP addresses, and appropriate routing.
 For this service, there are no changes required for either `suntan` or any of the clients.
 
->**NOTE: The tools for this section are *NetworkManager* and *firewall-cmd*. See
+>**NOTE**: The tools for this section are *NetworkManager* and *firewall-cmd*. See
 your distribution's documentation for the details.
 
 **Fedora**'s default network setup for VM instances is to configure their network to a private bridge that is NAT routed through the hypervisor.
@@ -95,18 +95,25 @@ The typical installation only allows SSH and system management connections.
 We need to add inbound access to `pobox` for the mail services.
 We use the following commands to add them:
 
-```bash
-[root@suntan ~]# firewall-cmd --add-service=imap --permanent
-[root@suntan ~]# firewall-cmd --add-service=imaps --permanent
-[root@suntan ~]# firewall-cmd --add-service=smtp --permanent
-[root@suntan ~]# firewall-cmd --add-service=smtps --permanent
-[root@suntan ~]# firewall-cmd --permanent --add-service=managesieve
 ```
+[root@pobox ~]# firewall-cmd --add-service=imap --permanent
+[root@pobox ~]# firewall-cmd --add-service=imaps --permanent
+[root@pobox ~]# firewall-cmd --add-service=smtp --permanent
+[root@pobox ~]# firewall-cmd --add-service=smtps --permanent
+[root@pobox ~]# firewall-cmd --permanent --add-service=managesieve
+```
+
+**Note:** We do not need to do this for `suntan`, the VM host
+because its own interface was "given" to the bridge so there is no
+packet routing through the `suntan` network stack and therefore
+subject to the firewall rules set for `suntan`.
+Think of the bridge as logically like a network switch sitting on
+the floor outside the cabinet and connected to both `suntan` and `pobox`.
 
 Checking our work, we see:
 
 ```bash
-[root@pobox dovecot]# firewall-cmd --list-all
+[root@pobox ~]# firewall-cmd --list-all
 FedoraServer (active)
   target: default
   icmp-block-inversion: no
@@ -158,11 +165,26 @@ It may/will be different on another distribution.
 No matter, use what the install assigns.
 We do not see the user name here because we are looking at it from `suntan` not `pobox`.
 
-We will only be creating one directory but if the service is supporting multiple virtual domains,
-we would be creating additional directories using the same commands.
+### Create Virtual Domain
+This installation can support multiple *virtual domains* which are the destination in `dovecot`
+where email arrives.
+There are two tasks required to set one up.
+First, a home directory for the domain is created.
+That is what this section describes.
+It would be nice to have this a part of what `postdove` does but that would be
+messier than simply doing these manual steps given that setting up these domains
+is not an every day task.
+The second part is creating the domain in the database and then the mailboxes within that domain.
+That is described in [Postdove Administration](admin.md).
 
-```bash
-[root@suntan dovecot]# cd /srv/dovecot
+At this point, `/srv/dovecot` is empty.
+A directory for each served *virtual domain* will be a sub-directory under `/srv/dovecot`.
+We will only be creating one directory `/srv/dovecot/example.com` for the domain `example.com`.
+If the service is supporting multiple virtual domains,
+we would be creating them using the same commands, i.e. `/srv/dovecot/homey.org` for domain `homey.org`.
+
+```
+[root@suntan ~]# cd /srv/dovecot
 [root@suntan dovecot]# chown 97.97 .
 [root@suntan dovecot]# mkdir example.com
 [root@suntan dovecot]# chmod 777 example.com
@@ -194,7 +216,7 @@ drwxr-xr-t. 1   97   97         66 Jun 18 08:44 .
 drwxr-xr-x. 1 root root         26 Feb 11  2019 ..
 drwxrwxrwt. 1   97   97         26 Jun 16 16:24 example.com
 ```
-### Attaching The Mail Storage 
+### Exporting The Mail Storage 
 The next step is to setup the export of this filesystem to the VM.
 There are two choices, use the traditional method of exporting the filesystem
 via NFS. This is how one would do it when using a separate server instead of a VM.
