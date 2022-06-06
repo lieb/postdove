@@ -1,6 +1,6 @@
 [root@pobox dovecot]# cat dovecot-sql.conf.ext 
 driver = sqlite
-connect = /etc/postfix/private/dovecot.sqlite
+connect = /etc/postfix/private/postdove.sqlite
 default_pass_scheme = PLAIN
 
 password_query = SELECT username, domain, password, \

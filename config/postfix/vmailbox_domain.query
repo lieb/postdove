@@ -2,6 +2,6 @@
 
 # open sqlite with foreign keys enabled to match postdove
 
-dbpath = /etc/postfix/private/dovecot.sqlite
+dbpath = /etc/postfix/private/postdove.sqlite
 
 query = SELECT name FROM vmailbox_domain WHERE name = '%u'

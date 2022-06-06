@@ -27,7 +27,7 @@ import (
 //go:embed version.txt
 var Version string
 
-const defaultDB = "/etc/postfix/private/dovecot.sqlite"
+const defaultDB = "/etc/postfix/private/postdove.sqlite"
 
 var (
 	dbFile        string

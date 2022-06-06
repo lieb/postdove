@@ -3,6 +3,6 @@
 
 # open sqlite with foreign keys enabled to match postdove
 
-dbpath = /etc/postfix/private/dovecot.sqlite
+dbpath = /etc/postfix/private/postdove.sqlite
 
 query = SELECT access_key FROM domain_access WHERE domain_name = '%d'
