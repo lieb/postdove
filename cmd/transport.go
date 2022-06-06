@@ -92,19 +92,19 @@ func init() {
 	exportCmd.AddCommand(exportTransport)
 	addCmd.AddCommand(addTransport)
 	addTransport.Flags().StringVarP(&transTransport, "transport", "t", "",
-		"Transport protoocol/method")
+		"Transport protocol/method")
 	addTransport.Flags().StringVarP(&transNexthop, "nexthop", "n", "",
 		"Transport nexthop to send email")
 	deleteCmd.AddCommand(deleteTransport)
 	editCmd.AddCommand(editTransport)
 	editTransport.Flags().StringVarP(&transTransport, "transport", "t", "",
-		"Transport protoocol/method")
+		"Transport protocol/method")
 	editTransport.Flags().BoolVarP(&noTransport, "no-transport", "T", false,
-		"Transport protoocol/method")
+		"Clear transport protocol/method")
 	editTransport.Flags().StringVarP(&transNexthop, "nexthop", "n", "",
 		"Transport nexthop to send email")
 	editTransport.Flags().BoolVarP(&noNexthop, "no-nexthop", "N", false,
-		"Transport nexthop to send email")
+		"Clear transport nexthop used to send email")
 	showCmd.AddCommand(showTransport)
 }
 
@@ -230,7 +230,7 @@ func transportShow(cmd *cobra.Command, args []string) error {
 	if tr, err = mdb.LookupTransport(args[0]); err != nil {
 		return err
 	}
-	cmd.Printf("Name:\t\t%s\nTransport:\t%s\nNexthop:\t%s",
+	cmd.Printf("Name:\t\t%s\nTransport:\t%s\nNexthop:\t%s\n",
 		tr.Name(), tr.Transport(), tr.Nexthop())
 	return nil
 }

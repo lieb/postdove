@@ -234,8 +234,12 @@ func virtualShow(cmd *cobra.Command, args []string) error {
 	if a, err = mdb.LookupAddress(args[0]); err == nil {
 		if al, err = a.Alias(); err == nil {
 			cmd.Printf("Virtual Alias:\t%s\nTargets:", args[0])
-			for _, t := range al.Targets() {
-				cmd.Printf("\t%s\n", t.Recipient())
+			for i, t := range al.Targets() {
+				if i == 0 {
+					cmd.Printf("\t%s\n", t.Recipient())
+				} else {
+					cmd.Printf("\t\t%s\n", t.Recipient())
+				}
 			}
 		}
 	}

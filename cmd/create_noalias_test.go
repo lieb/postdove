@@ -65,7 +65,7 @@ func TestCreateNoAliases(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of postmaster in good DB: Unexpected error, %s", err)
 	}
-	if out != "Alias:\tpostmaster\nTargets:\troot\n" {
+	if out != "Alias:\t\tpostmaster\nTargets:\troot\n" {
 		t.Errorf("Show of postmaster in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {

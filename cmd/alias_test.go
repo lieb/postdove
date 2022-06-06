@@ -76,7 +76,7 @@ func TestAliasCmds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of postmaster in good DB: Unexpected error, %s", err)
 	}
-	if out != "Alias:\tpostmaster\nTargets:\tbill@sysops\n" {
+	if out != "Alias:\t\tpostmaster\nTargets:\tbill@sysops\n" {
 		t.Errorf("Show of postmaster in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -99,7 +99,7 @@ func TestAliasCmds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of postmaster in good DB: Unexpected error, %s", err)
 	}
-	if out != "Alias:\tpostmaster\nTargets:\tbill@sysops\n\tdave@noc\n" {
+	if out != "Alias:\t\tpostmaster\nTargets:\tbill@sysops\n\tdave@noc\n" {
 		t.Errorf("Show of postmaster in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -123,7 +123,7 @@ func TestAliasCmds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of root in good DB: Unexpected error, %s", err)
 	}
-	if out != "Alias:\troot\nTargets:\tmary@noc\n" {
+	if out != "Alias:\t\troot\nTargets:\tmary@noc\n" {
 		t.Errorf("Show of root in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -171,7 +171,7 @@ func TestAliasCmds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of bruce@e-street in good DB: Unexpected error, %s", err)
 	}
-	if out != "Virtual Alias:\tbruce@e-street\nTargets:\tpaul@beatles\n\tdorothy@oz\n" {
+	if out != "Virtual Alias:\tbruce@e-street\nTargets:\tpaul@beatles\n\t\tdorothy@oz\n" {
 		t.Errorf("Show of bruce@e-street in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -220,7 +220,7 @@ func TestAliasCmds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of mark@fuse.org in good DB: Unexpected error, %s", err)
 	}
-	if out != "Virtual Alias:\tmark@fuse.org\nTargets:\tjohn@wayne\n\tjimmy@stewart\n" {
+	if out != "Virtual Alias:\tmark@fuse.org\nTargets:\tjohn@wayne\n\t\tjimmy@stewart\n" {
 		t.Errorf("Show of mark@fuse.org in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -245,7 +245,7 @@ func TestAliasCmds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of root in good DB: Unexpected error, %s", err)
 	}
-	if out != "Alias:\troot\nTargets:\tjoe@tech\n\tray@ops\n" {
+	if out != "Alias:\t\troot\nTargets:\tjoe@tech\n\tray@ops\n" {
 		t.Errorf("Show of root in good DB: did not get expected output, got %s", out)
 	}
 	if errout != "" {

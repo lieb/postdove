@@ -106,7 +106,7 @@ var addCmd = &cobra.Command{
 // deleteCmd represents the delete command
 var deleteCmd = &cobra.Command{
 	Use:   "delete [table]",
-	Short: "Delete and entry in the specified table",
+	Short: "Delete an entry in the specified table",
 	Long:  `Delete an entry in the specified table.`,
 }
 

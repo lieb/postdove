@@ -96,12 +96,8 @@ func init() {
 	addCmd.AddCommand(addAddress)
 	addAddress.Flags().StringVarP(&arClass, "rclass", "r", "",
 		"Restriction class for this address")
-	addAddress.Flags().BoolVarP(&aNoRclass, "no-rclass", "R", false,
-		"Clear restriction class for this address")
 	addAddress.Flags().StringVarP(&aTransport, "transport", "t", "",
 		"Transport to be used for this address")
-	addAddress.Flags().BoolVarP(&aNoTransport, "no-transport", "T", false,
-		"Clear transport used by this address")
 	deleteCmd.AddCommand(deleteAddress)
 	editCmd.AddCommand(editAddress)
 	editAddress.Flags().StringVarP(&arClass, "rclass", "r", "",
@@ -243,7 +239,7 @@ func addressShow(cmd *cobra.Command, args []string) error {
 	if a, err = mdb.LookupAddress(args[0]); err != nil {
 		return err
 	}
-	cmd.Printf("Address:\t\t%s\nTransport:\t%s\nRestrictions:\t%s\n",
+	cmd.Printf("Address:\t%s\nTransport:\t%s\nRestrictions:\t%s\n",
 		a.Address(), a.Transport(), a.Rclass())
 	return nil
 }

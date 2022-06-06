@@ -131,7 +131,7 @@ goofy
 	if err != nil {
 		t.Errorf("Show of empty: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tempty\nTransport:\t--\nNexthop:\t--" {
+	if out != "Name:\t\tempty\nTransport:\t--\nNexthop:\t--\n" {
 		t.Errorf("Show of empty: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -144,7 +144,7 @@ goofy
 	if err != nil {
 		t.Errorf("Show of local: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tlocal\nTransport:\tlocal\nNexthop:\t--" {
+	if out != "Name:\t\tlocal\nTransport:\tlocal\nNexthop:\t--\n" {
 		t.Errorf("Show of local: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -157,7 +157,7 @@ goofy
 	if err != nil {
 		t.Errorf("Show of relay: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\trelay\nTransport:\tsmtp\nNexthop:\tfoo.com:24" {
+	if out != "Name:\t\trelay\nTransport:\tsmtp\nNexthop:\tfoo.com:24\n" {
 		t.Errorf("Show of relay: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -288,7 +288,7 @@ goofy
 	if err != nil {
 		t.Errorf("Show of relay: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\trelay\nTransport:\tsmtp\nNexthop:\t--" {
+	if out != "Name:\t\trelay\nTransport:\tsmtp\nNexthop:\t--\n" {
 		t.Errorf("Show of relay: did not get expected output, got %s", out)
 	}
 	if errout != "" {
@@ -313,7 +313,7 @@ goofy
 	if err != nil {
 		t.Errorf("Show of empty: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tempty\nTransport:\tfoo\nNexthop:\t--" {
+	if out != "Name:\t\tempty\nTransport:\tfoo\nNexthop:\t--\n" {
 		t.Errorf("Show of empty: did not get expected output, got %s", out)
 	}
 	if errout != "" {

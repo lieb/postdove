@@ -75,7 +75,7 @@ func TestTransportAddOne(t *testing.T) {
 	if err != nil {
 		t.Errorf("Show of domain: Unexpected error, %s", err)
 	}
-	if out != "Name:\t\tdomain\nTransport:\t--\nNexthop:\tnext.com" {
+	if out != "Name:\t\tdomain\nTransport:\t--\nNexthop:\tnext.com\n" {
 		t.Errorf("Show of domain: did not get expected output, got %s", out)
 	}
 	if errout != "" {
