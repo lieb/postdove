@@ -1,7 +1,6 @@
-[root@pobox dovecot]# cat sql-deny.conf.ext 
 driver = sqlite
 connect = /etc/postfix/private/postdove.sqlite
 
-password_query = SELECT '%u' FROM user_deny \
+password_query = SELECT deny FROM user_deny \
 WHERE username = '%n' AND domain = '%d'
 
