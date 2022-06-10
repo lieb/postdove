@@ -183,6 +183,19 @@ func TestViews(t *testing.T) {
 		t.Errorf("Import of addresses from file: Expected no error output, got %s", errout)
 	}
 
+	// Add a user in a relay domain
+	args = []string{"-d", dbfile, "add", "address", "dave@dish.net"}
+	out, errout, err = doTest(rootCmd, "", args)
+	if err != nil {
+		t.Errorf("add relay address dave@dish.net: Unexpected error, %s", err)
+	}
+	if out != "" {
+		t.Errorf("add relay address dave@dish.net: Expected no output, got %s", out)
+	}
+	if errout != "" {
+		t.Errorf("add relay address dave@dish.net: Expected no error output, got %s", errout)
+	}
+
 	// Load some (/etc/aliases) aliases
 	args = []string{"-d", dbfile, "import", "alias", "-i", "./test_aliases.txt"}
 	out, errout, err = doTest(rootCmd, "", args)
@@ -687,4 +700,32 @@ WHERE username = 'dave' AND domain = 'pobox.org'
 	if err = queryView(mdb, q, expectedRes); err != nil {
 		t.Errorf("Deny deny: %s", err)
 	}
+
+	// add an address into a relay domain
+
+	// look up relay addresses
+	fmt.Printf("Relay gramma@cottage\n")
+	q = `
+SELECT key FROM address_relay
+WHERE username = 'gramma' AND domain_name ='cottage'
+`
+	expectedRes = []maildb.QueryRes{}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Relay gramma@cottage: %s", err)
+	}
+
+	fmt.Printf("Relay dave@dish.net\n")
+	q = `
+SELECT key FROM address_relay
+WHERE username = 'dave' AND domain_name = 'dish.net'
+`
+	expectedRes = []maildb.QueryRes{
+		{
+			"key": "x",
+		},
+	}
+	if err = queryView(mdb, q, expectedRes); err != nil {
+		t.Errorf("Relay dave@dish.net: %s", err)
+	}
+
 }

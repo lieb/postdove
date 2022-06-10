@@ -174,6 +174,14 @@ CREATE VIEW "address_transport" AS
      JOIN domain AS d ON a.domain IS d.id
   WHERE a.transport IS NOT NULL OR d.transport IS NOT NULL;
 
+-- address_relay
+-- return a "key" to indicate the address is one to be relayed
+DROP VIEW IF EXISTS "address_relay";
+CREATE VIEW "address_relay" AS
+       SELECT 'x' AS key, a.localpart AS username, d.name AS domain_name
+       FROM address AS a, domain AS d
+       WHERE a.domain = d.id AND d.class = 2;
+
 -- Alias table
 DROP TABLE IF EXISTS "Alias";
 CREATE TABLE "Alias" (
