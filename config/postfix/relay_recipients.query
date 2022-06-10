@@ -1,0 +1,8 @@
+# relay recipients map
+
+# Untested to date.
+
+dbpath = /etc/postfix/private/postdove.sqlite
+
+query = SELECT key FROM address_relay
+        WHERE username IS '%u' AND domain_name IS '%d

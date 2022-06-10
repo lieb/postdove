@@ -1,0 +1,9 @@
+# Virtual Mailbox
+
+# This is untested! It is also very dependent on local conditions.
+# It is a _start_, use caution and test.
+
+dbpath = /etc/postfix/private/postdove.sqlite
+
+query = SELECT COALESCE(home, 'vmail/%d/%u/Mail') FROM user_mailbox
+        WHERE username IS '%u' AND domain IS '%d'
