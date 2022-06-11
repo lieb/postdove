@@ -1,11 +1,9 @@
 
-* Fill out install docs
-
 * Think about method for doing local users and extend vmailbox for it. For now,
   we only support virtuals.
 
 * make vmailbox.enable an enum to support imap, pop3, etc.
 
-* add tests for views in maildb test suite. Model queries from configs.
-
 * add TUI based on github.com/rivo/tview
+
+* Clean up loose ends in domain add etc. for uid/gid 99.
