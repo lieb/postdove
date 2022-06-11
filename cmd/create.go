@@ -96,7 +96,7 @@ func init() {
 		"Do not load RFC 2142 aliases")
 	createCmd.Flags().StringVarP(&domainsFile, "local", "l",
 		"",
-		"default local domains (localhost, localhost.localdomain")
+		"default local domains (localhost, localhost.localdomain)")
 	createCmd.Flags().BoolVarP(&domainLoad, "no-locals", "L", false,
 		"Do not load local domain hosts")
 }
