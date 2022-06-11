@@ -1,7 +1,7 @@
 # Postfix Configuration
 
 ## Install Packages
-Install postfix and the sqlite support packages. This is the base install
+Install postfix and the sqlite support packages. This is the base install.
 
 ```
 # dnf install -y postfix postfix-sqlite
@@ -98,15 +98,18 @@ These two additions end up being the following additions to `master.cf`.
 Note these are at the end of the file.
 The first chunk is the SPF filter.
 This is the test during connection time to see if the sender is a bad guy before `postfix` even
-thinks about letting the data in. All of this is important but outside the scope of what `postdove`
-is for; very good and important to have but work in parallel to what this project is doing.
+thinks about letting the data in.
+All of this is important but outside the scope of configuring `postfix` to work
+with `postdove`.
+It is very good and important to have but not fully relevant
+to what this project is doing.
 
 The second chunk is for filtering the data of the message.
-It is sent to filter via a named pipe and returned back into the stream via socket 10025.
+It is sent to filter via a named pipe and returned back into the stream via socket `10025`.
 This too is very important but parallel to what this project is doing.
 
-It isn't until all this processing is done on a message that the controls managed by `postdove`
-take effect.
+It isn't until all this processing is done on a message that the controls
+managed by `postdove`take effect.
 
 ### Query Setup
 Email routing and filtering in `postfix` requires databases of domains and addresses.
@@ -115,7 +118,7 @@ This is what is documented in the `postfix` documentation.
 One of the alternatives for *hash* files are SQL database queries.
 This is what `postdove` manages.
 
-The configuration comes in two parts. First, `postfix` itself is configured to use sqlite queries for
+The configuration comes in two parts. First, `postfix` itself is configured to use *Sqlite* queries for
 its various lookups. Second, the database needs a number of additional records added so that `postfix` can
 use these records to process the email.
 
@@ -157,8 +160,11 @@ query = SELECT recipient FROM etc_aliases WHERE local_user = '%u'
 ```
 There are two things to note.
 The query always returns a single result column, in this case `recipient`.
-There may be multiple results returned but each result is a single row.
 This matches the *key: value* pairs in *hash* queries.
+There could be multiple results and if this were a *hash* entry,
+it would look like: `key: value1, value2, ...`.
+In an SQL query, there may also be multiple results returned but they would be returned
+as multiple rows, each result `value` in a single row.
 Some queries are just looking for the *key* so the actual result does not matter.
 In other words, the query is really *Is it there?*.
 If the result "is not there", no results are returned and `postfix` moves on to the
@@ -170,7 +176,7 @@ These are the *key* values corresponding to what a *hash* query would expect.
 All of this magic is already set up in the supplied queries.
 
 **NOTE:** The comment about foreign keys is not really correct.
-For backwards compatibility, the *Sqlite* library does not enforce foreign key constraints.
+For backwards compatibility, the *Sqlite* library itself does not enforce foreign key constraints unless the open of the database file specifies it.
 The `postdove` utility does open the database with that *PRAGMA* enabled so database changes
 are clean and proper but attempting the same thing in `postfix` does not work.
 This is really not a problem because `postfix` only does queries and the library
@@ -181,7 +187,7 @@ Every query done by `postfix` references a database *View*.
 We won't go into the details here so if one wants to know what an SQL view is, consult
 the *Sqlite* documentation or any book on SQL.
 The important thing is that the *view* is internal to the database library and schema.
-It completely encapsulates all the query complexity into a simple
+It completely encapsulates all the query complexity into a simple `SELECT`
 query returning one result.
 An examination of some of the view definitions in the schema show just how messy things can be.
 
@@ -196,6 +202,7 @@ Some changes are just basic `postfix` changes needed to make the package useful 
 configuration.
 The rest, the interesting bits for `postdove` operation are the queries.
 
+#### Query Setup
 First off, we set up for queries.
 ```
 --- main.cf.orig        2022-01-20 15:46:33.000000000 -0800
@@ -215,6 +222,7 @@ This is little more than a *macro* to keep the changes below simple.
 The `$config_directory` is the default `postfix` setting `/etc/postfix`.
 This is how `postfix` finds the query files copied into the system (See above).
 
+#### When Queries Do Not Apply or Work
 The next parameter, `myhostname` would be nice if it could be queried.
 Unfortunately, this makes `postfix` very unhappy because it really wants a constant...
 ```
@@ -286,6 +294,7 @@ The result setting is equivalent to the second line.
 This is because we have these host names in the database.
 Only `$mydomain` isn't set because of the reason above.
 
+#### Mail Filtering
 This is a big chunk, all of which is commented out here to show context.
 All of this would apply to the *access rules* discussed in the
 [Commands Reference](commands_reference.md) documentation.
@@ -388,7 +397,49 @@ The next chunk of `main.cf` is more general `postfix` configuration setting my "
 ```
 This is only my local LAN and, of course, the loopback.
 
-The next chunk wires the relay processing.
+#### Relay Processing
+If we need relay support, we need to set things up so `postfix` can first decide
+if an inbound email can be accepted because it can be relayed somewhere else
+and second, it has a transport destination to forward it to.
+Take for example, the case described in [Postfix Standard Configuration Examples](https://www.postfix.org/STANDARD_CONFIGURATION_README.html).
+In this snippet, `postfix` gets the wiring to recognize addresses that can be
+accepted for relay.
+It also has the wiring to send it on its way to the next destination.
+We have skipped access rules "stuff" to focus on the relay wiring.
+```
+ 3     relay_domains = example.com
+ 
+11     relay_recipient_maps = hash:/etc/postfix/relay_recipients
+12     transport_maps = hash:/etc/postfix/transport
+13 
+14 /etc/postfix/relay_recipients:
+15     user1@example.com   x
+16     user2@example.com   x
+17      . . .
+18 
+19 /etc/postfix/transport:
+20     example.com   relay:[inside-gateway.example.com]
+
+```
+This shows both the parameters and the hash files that make it work.
+The next chunk wires the relay processing using the database.
+
+To make the discussion below work, we first must make entries into the database
+with `postdove` that do what the *hash* files do above.
+First, we create the transport needed by the relay.
+```
+[pobox ~]# postdove add transport inside --transport=relay --nexthop=[inside-gateway.example.com]
+```
+
+Next, we have to create the domain we will relay and add some addresses to relay.
+```
+[pobox ~]# postdove add domain example.com --class=relay --transport=inside
+[pobox ~]# postdove add address user1@example.com
+[pobox ~]# postdove add address user2@example.com
+```
+I do not have to add the transport for either user because they inherit
+it from the domain. That is it.
+
 I have it commented out because I'm not relaying anywhere.
 A larger network would use this for distributed internal mail service.
 ```
@@ -442,6 +493,7 @@ The end result is that when `postfix` looks up `example.com` to figure out where
 it gets back `lmtp:localhost:24` which will tell it to use its LMTP client engine to connect
 to `localhost` and transfer the email.
 
+#### Aliases and Virtual Aliases
 This last chunk sets up all *alias* and *virtual alias* lookups to use database queries.
 ```
 @@ -402,9 +454,16 @@
@@ -477,7 +529,12 @@ I don't use `virtual_mailbox_maps` in my configuration but the database supports
 such queries. See the `postfix` documentation for details.
 If it fits your configuration, turn it on.
 
-This last chunk is just linkage for the *Amavis* mail filter linkage.
+#### Spam Filter Wiring
+This last chunk is just linkage for the *Amavisd* mail filter linkage.
+This directive `content_filter` routes email to another process,
+in this case the `amavis` filter that is listening on `localhost:10024`.
+The companion to this was set up in `master.cf` to receive the email back
+on `localhost:10025`.
 It is part of the configuration but not involved with `postdove`.
 ```
 @@ -736,3 +795,7 @@

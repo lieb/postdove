@@ -7,7 +7,7 @@ system users and one administrator account. The `root` account has login
 disabled and the administrator account (which can `sudo`) requires `ssh` authorized keys for login.
 
 Email has been traditionally stored in either `/var/mail` or `/var/spool/mail`.
-Typically, local mail inboxes have been located here since the days before networking on UNIX systems.
+Local mail inboxes have been located here since the days before networking on UNIX systems.
 However, few IMAP/POP3 servers do that anymore.
 They either deposit incoming mail in the user's home directory or in a central place,
 often not even on the same system as the user. Our server is a black box server that only provides access via IMAP/POP3.
@@ -59,7 +59,7 @@ On `suntan` it is mounted as a sub-volume of one of the RAID1 filesystems.
 On `pobox` it is either the *autofs* managed mountpoint or the *virtiofs* mount of that sub-volume.
 * `/srv/dovecot/example.com` is the base directory for the IMAP accounts for the `example.com` virtual mailbox domain on both `suntan` and `pobox`.
 There are individual home directories for users located on `suntan` but they are not
-associated with the email configuration. Ordinary login users only use `suntan` itself for home directories.
+associated with the email configuration. Ordinary login users only use `suntan` itself for shared directories.
 
 ## Network Configuration
 Network configuration is outside the scope of this discussion. It has simply set up
@@ -81,8 +81,8 @@ we are looking for.
 
 1. Create a bridge on `suntan`. This is separate from the one managed by
 the hypervisor.
-1. Attach `suntan`'s ethernet interface to the bridge. This means that `suntan`'s
-IP address is now attached to the bridge.
+1. Attach `suntan`'s ethernet interface to the bridge.
+This means that `suntan`'s ethernet interface address is now attached to the bridge.
 1. When creating the VM for `pobox`, choose this new bridge for its
 network connection instead of the hypervisor supplied one.
 
@@ -154,15 +154,15 @@ LABEL=suntan_str    /home         btrfs   defaults,subvol=home    1 2
 ```
 
 Our filesystem is a BTRFS *subvolume*. That is just my practice. It is
-convenient. For the sake of the discussion, whatever it ends up being
+convenient. For the sake of the discussion, whatever it ends up being,
 the root of that tree resides at `/srv/dovecot`.
 
 Before we export anything, we can first get the basic skeleton of a mailstore
 in place.
 Note that the owner and group of dovecot is `97` in the commands below.
 This is the uid/gid pair assigned by the **Fedora** install of `dovecot` on `pobox`.
-It may/will be different on another distribution.
-No matter, use what the install assigns.
+It may be different on another distribution.
+No matter, use the IDs that the install assigns.
 We do not see the user name here because we are looking at it from `suntan` not `pobox`.
 
 ### Create Virtual Domain

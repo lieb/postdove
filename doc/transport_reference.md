@@ -233,6 +233,10 @@ Global Flags:
 ```
 
 ### Options
+The command requires a single argument naming the transport to show.
+
+There are no options.
+
 ### Examples
 Show the transport `dovecot`.
 ```

@@ -136,13 +136,26 @@ This should be big enough at `1024` slots.
   * `xattr` is enabled. This allows passing *selinux* labels back and forth.
   * `cache` mode is `always` for performance. Some sharing environments cannot use
   this but we can. See the `virtiofsd` documentation for details.
-  * Both `posix` and `flock` (BSD) locks are enabled. More on this later.
+  * Both `posix` and `flock` (BSD) locks are enabled.
 * The `source` is `/srv/dovecot`. This is the the equivalent to an *export* in
 NFS terms. The *VirtioFS* service contains all references to this to just
 `/srv/dovecot` so there is no leakage of anything else on `suntan` just in
 case the VM decided to go rogue.
 * The `target` is the name/handle, analogous to a disk name or UUID, that the VM references.
 We will see `mailstore` on the VM side where we configure filesystem mounts.
+
+File locking can be problematic on non-local filesystems.
+This includes not only *NFS* or *CIFS* but, as it turns out, *VirtioFS* as well.
+In the *VirtioFS* case, there are potential deadlocks with blocking locks.
+See [Dovecot Configuration](dovecot_configuration.md) for how to handle this
+situation in `dovecot`.
+One choice here is to leave the `<lock ... />` directive out resulting in the
+default being `off` for both types of locks.
+We have left it in because *some* of the locking API does work and the
+system will return a *not supported* error for the ones that do not.
+
+**NOTE:** This may change in future versions of `virtiofsd`, the QEMU server that
+manages the filesystem.
 
 This sets up everything for the hypervisor on `suntan` to launch the `pobox` VM.
 The next step is done on `pobox` to mount the filesystem.
@@ -194,7 +207,10 @@ We provide access via the `xaddr` option we set up in configuring
 Whatever labels present in `/srv/dovecot` at the time the BTRFS subvolume
 was created and mounted are passed to the kernel on `pobox`.
 Therefore, we need to ensure that the labels on `suntan` are correct.
-This is done by *selinux* tools. On `suntan`, do the following:
+This is done by *selinux* tools.
+The `chcon` command changes the *Selinux* security context of a file.
+The security context is identified by the label, in this case `mail_home_rw_t`.
+On `suntan`, do the following:
 
 ```bash
 [root@suntan srv]# chcon -R -t mail_home_rw_t dovecot

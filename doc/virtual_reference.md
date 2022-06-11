@@ -46,7 +46,7 @@ Add a virtual alias for a simple distribution list.
 
 ## Delete
 Delete a virtual alias.
-The commmand will also remove any recipients that would be *orphaned*,
+The command will also remove any recipients that would be *orphaned*,
 namely they are not used anywhere else in the system.
 
 This command is similar to `postdove delete alias`.
@@ -178,6 +178,7 @@ Export just the virtuals for `example.com`.
 ```
 
 ## Import
+Import virtual aliases in `virtual(5)` format from the standard input or a file.
 
 Use the help option to show the command.
 ```

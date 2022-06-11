@@ -96,21 +96,6 @@ that has no sub-commmands.
 The rest of the commands are associated with the data files, usually hash indexes, used by `postfix` with
 the exception of `mailbox` which manages the `dovecot` user database.
 
-## Access Controls
-`postfix` examines incoming email with the primary goal of rejecting spam and phishing attacks.
-This is done by a series of filters that examine either the incoming connecting server or
-the content of the email itself. It examines the server at connection time against databases of
-known bad actors. This allows the connection (and email) to be rejected before the data transfer.
-If the incoming email survives the connection, the next step is to examine the email itself.
-
-There are a series of tests that are controlled by lists of filters specified
-in the `main.cf` configuration file.
-One option is to define classes of filters and then select them via lookups where the lookup key
-is a domain or user at a domain. The access controls in `postdove` manage those lookups.
-See [Access Commands Reference](access_reference.md) for the details. These are not mandatory, i.e.,
-`postfix` filtering can be configured to treat all emails the same but using these
-access controls can fine tune the behavior.
-
 ## Imports and Exports
 Each of the following commands have an `export` and `import` command.
 These commands are used for bulk transfer of database contents and the format
@@ -178,6 +163,21 @@ The *rclass* property would be the token `rclass=restrict` which means the
 
 Since comments are stripped on import, no comments are added on export.
 
+## Access Controls
+`postfix` examines incoming email with the primary goal of rejecting spam and phishing attacks.
+This is done by a series of filters that examine either the incoming connecting server or
+the content of the email itself. It examines the server at connection time against databases of
+known bad actors. This allows the connection (and email) to be rejected before the data transfer.
+If the incoming email survives the connection, the next step is to examine the email itself.
+
+There are a series of tests that are controlled by lists of filters specified
+in the `main.cf` configuration file.
+One option is to define classes of filters and then select them via lookups where the lookup key
+is a domain or user at a domain. The access controls in `postdove` manage those lookups.
+See [Access Commands Reference](access_reference.md) for the details. These are not mandatory, i.e.,
+`postfix` filtering can be configured to treat all emails the same but using these
+access controls can fine tune the behavior.
+
 ## Transport Management
 Once an email has been checked by the filters, `postfix` must then do something with it.
 The protocols require `postfix` to either forward the email to its destination or bounce
@@ -207,8 +207,8 @@ See [Alias Management Reference](alias_reference.md) for details and use.
 A virtual alias is similar to a local alias except that its name always has a domain part,
 i.e. `user@some.domain`. There are no restrictions on what the domain part is for
 either the name or any in the list of recipients.
-See [Virtual Alias Management Reference](virtual_reference.mc) for details.
+See [Virtual Alias Management Reference](virtual_reference.md) for details.
 
 ## Mailbox Management
 Mailboxes are managed by `dovecot`. Each mailbox has a set of properties that are managed by `dovecot`.
-See [Mailbox Management Reference](maillbox_reference.md) for details.
+See [Mailbox Management Reference](mailbox_reference.md) for details.

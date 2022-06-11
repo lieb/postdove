@@ -16,17 +16,20 @@ other commands to establish the link.
 Structuring `postfix` access rules/constraints separate from the users they apply to is
 useful because on the `postfix` side the filtering rules and their ordering sometimes need to
 change. A labeled class can simply be modified without having to make a change to all of the
-user accounts that use it. On the `dovecot` side, users can easily be added to a rule class
-without messing with `postfix` internals. For example, there could be a case where a class
-must be made more restrictive but only for some users. A new class could be created that
-includes the original class and adds some more filters. A new access rule can then be
-added in `postdove`.
+user accounts that use it.
+On the `postdove` side, users can easily be added to a rule class
+without messing with `postfix` internals.
+For example, there could be a case where a class
+must be made more restrictive but only for some users.
+A new class could be created that
+includes the original class and adds some more filters.
+A new access rule can then be added in `postdove`.
 Each of the users that needs the new rule could then be edited to use the new
 rule. If the new rule gets further enhancements,
-nothing further needs to be done on the `dovecot` side for those users.
+nothing further needs to be done on the `postdove` side for those users.
 
-Access rules are applied to either addresses or domains. Results are returned to `postfix`
-in the following order:
+Access rules are applied to either addresses or domains.
+Results are returned to `postfix` in the following order:
 
 1. If a rule is associated with `user@domain`, that rule is returned as the result.
 2. If there is no rule associated with `user@domain` but there is one associated with `domain`, that rule is returned.

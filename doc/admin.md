@@ -39,6 +39,13 @@ not automatically get added when a virtual mail user is created.
 [root@pobox ~]# postdove add domain example.com --class=vmailbox --transport=dovecot
 ```
 
+This is the `postdove` side of what we did when we set up the `/srv/dovecot/example.com` directory early on in the filesystems configuration.
+We could have done that work here except that we needed to get the filesystems
+setup correct and it was easier to do that with a `/srv/dovecot` directory that was
+not empty.
+If we were to create a second or subsequent virtual mailbox domain, we would do
+the directory creation here along with the adding the domain.
+
 This sets up a basics for an installation. There are lots more to do in order
 to get something useful.
 
@@ -49,6 +56,14 @@ enough for `dovecot` to start serving mail.
 If we are moving from another email system, an easy route to bulk load accounts
 would be to dump the existing accounts in a format that matches the `dovecot` account
 table. We could then `import` that into the database.
+
+If we were migrating existing email as well as the account, one could copy the files
+they were in *maildir* format.
+However, I would not recommend that path because not all *maildir* formats are equal
+and in my case, the old mail storage was in a database.
+The better path would be to add this new IMAP server to your user's email clients and
+use the client and its IMAP client service to copy or move the emails using the
+IMAP services which are (more or less) equal.
 
 ## Add Aliases
 Add aliases. These will be used by `postfix` to process and deliver

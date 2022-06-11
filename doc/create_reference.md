@@ -19,9 +19,9 @@ Usage:
   postdove create [flags]
 
 Flags:
-  -a, --alias string    RFC 2142 required aliases (default is built in")
+  -a, --alias string    RFC 2142 required aliases (default is built in)
   -h, --help            help for create
-  -l, --local string    default local domains (localhost, localhost.localdomain
+  -l, --local string    default local domains (localhost, localhost.localdomain)
   -A, --no-aliases      Do not load RFC 2142 aliases
   -L, --no-locals       Do not load local domain hosts
   -s, --schema string   Schema file to define tables of database. Default is built in.
@@ -51,12 +51,11 @@ Most usages should use the built in schema because the application logic of the
 utility expects it, especially the defined triggers and views. Using an alternate
 schema should be used with care.
 
-**CAUTION**
+**CAUTION:**
+Use this command with care. If you apply it to a running database, it will
+drop all data and leave and initialized empty database. NEVER use this on an active
+system. If you must upgrade the database, first **export** all the the tables.
 
-	Use this command with care. If you apply it to a running database, it will
-	drop all data and leave and initialized empty database. NEVER use this on an active
-	system. If you must upgrade the database, first **export** all the the tables.
-	
 ## Examples
 Create a new database populated with aliases and local domains.
 ```

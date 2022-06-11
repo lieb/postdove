@@ -36,7 +36,7 @@ drwxr-xr-x. 1 root   root   174 Feb 11  2019 home
 ```
 
 Note that the owner and group of `dovecot` is `97`.
-This is the uid/gid pair assigned by the **Fedora** install of `dovecot` package on `pobox` and may/will be different on another distribution.
+This is the uid/gid pair assigned by the **Fedora** install of `dovecot` package on `pobox` and may be different on another distribution.
 No matter, we use what the install assigns.
 We do not see the user name here because we are looking at it from `suntan` not `pobox`.
 

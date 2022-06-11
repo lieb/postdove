@@ -119,7 +119,7 @@ This is set up so that `bill@example.com` will have a home for his mail at
 will place each email in a separate file. This works well in BTRFS because it
 will store small files more efficiently than other, more traditional filesystems.
 
-This does not preclude having `dovecot` from using a different location.
+This does not prevent `dovecot` from using a different location for mail.
 The user record in the database can override this if desired.
 
 Next set up the default user and group IDs for when all else fails to identify one.
@@ -147,6 +147,36 @@ that these values be set.
 I have set them to `2000` arbitrarily to get them out of the way of any active numbers.
 In this configuration, they should never be used by `dovecot`
 other than to annoy the administrator.
+
+There are a number of different methods to do file locking which
+is necessary given that mail can come in while users are actively reading
+already arrived mail. This chunk selects the method to use.
+```
+@@ -165,6 +168,12 @@
+ # methods. NFS users: flock doesn't work, remember to change mmap_disable.
+ #lock_method = fcntl
+ 
++# F_SETLKW does not work on virtiofs filesystem. Given the extremely
++# broken nature of POSIX locks, this is hard to make work on anything
++# other than local filesystems. BTW, flock works just fine in NFSv4.
++# OOPS. blocking flock doesn't work either. fall back to dotlock...
++lock_method = dotlock
++
+ # Directory where mails can be temporarily stored. Usually it's used only for
+ # mails larger than >= 128 kB. It's used by various parts of Dovecot, for
+ # example LDA/LMTP while delivering large mails or zlib plugin for keeping
+```
+The `fcntl`, `flock` methods use system calls to gain exclusive access to files.
+The `dotlock` method uses the *exclusive open* option for opening files to do the
+same thing.
+The comment above is from my experimentation.
+I found that `flock`, which works just fine on *NFS* also worked with *VirtioFS*
+until the developers discovered that blocking locks where the process waits for the
+lock can *deadlock*, a very bad thing.
+The `virtiofsd` process now returns a *not supported* error, eliminating this
+efficient method.
+Hence, the fallback to `dotlock`. Should the developers come up with a solution,
+we can change it back.
 
 The server also wants to know the legal ranges for user and group IDs.
 
@@ -336,7 +366,7 @@ build documentation.
 There is one point, however, that is important to the queries in this section.
 To avoid complex and/or obscure SQL queries, we use *views* in the
 database to handle all the complexity in the database and just leave
-a simple SQL statement for the `dovecot` configuration.
+a simple SQL `SELECT` statement for the `dovecot` configuration.
 
 The following files can be found in the `config` directory of the source. They are copied
 to the `/etc/dovecot` system directory.

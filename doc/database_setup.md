@@ -24,7 +24,7 @@ It is possible to only configure `dovecot` and either leave `postfix` to its own
 devices or run with no MTA at all, simply an IMAP/POP3 mailstore.
 The file is owned by `root` with group `mail`.
 It is read/write for `root`, readable by both servers, and denied to everyone else.
-No security labels other than the default ones for the `/etc` directory are applied.
+No security labels other than the default ones for the `/etc/postfix` directory are applied.
 
 **Fedora** creates *user* and *group* identities for both services.
 In addition to the default group `postfix`, another group, `mail`,
@@ -36,6 +36,7 @@ If more security is required, there are no limitations built into `postdove` to
 prevent changing to a new group.
 All the program requires is read-write access for the administrator.
 
+This is how the groups are set up for both `postfix` and `dovecot`.
 ```bash
 [root@pobox ~]# cd /etc/postfix
 [root@pobox postfix]# grep dovecot /etc/group
@@ -44,7 +45,7 @@ dovecot:x:97:
 mail:x:12:postfix
 postfix:x:89:
 ```
-The next step is to add `dovecot` to the `mail` group that `postfix owns.
+The next step is to add `dovecot` to the `mail` group that `postfix` owns.
 
 ```bash
 [root@pobox postfix]# usermod -a -G mail dovecot
@@ -63,7 +64,6 @@ we now create. We also lock it down so ordinary users cannot see its contents.
 We now have place for our database so create it and see what we have so far.
 ```bash
 [root@pobox postfix]# postdove create
-[root@pobox postfix]# ls -l /etc/postfix/private/
 [root@pobox postfix]# ls -la /etc/postfix/private
 total 56
 drwxr-x---. 2 root mail    28 Jun 10 14:46 .
@@ -86,7 +86,7 @@ access to use it in the running system.
 We also have an (almost) empty database.
 The `create` command also imports the local host names `localhost` and `localhost.localdomain`
 and the standard RFC 2142 set of local aliases.
-Later on during Postfix configuration we will add an alias for root that will
+Later on during Postfix configuration we will add an alias for `root` that will
 redirect all this standard system email traffic to someone who will actually read them.
 It also adds the following domains:
 ```bash
@@ -107,6 +107,10 @@ UserID:         --
 Group ID:       --
 Restrictions:   --
 ```
+Notice the `99` for the `UserID` and `Group ID` for `localhost`.
+This is the system fallback default for users.
+See [Postdove Administration](admin.md) for more information.
+
 ## SELinux Changes
 We use **Fedora** which has SELinux enabled by default. Some other distributions, such as
 **Ubuntu** use the **AppArmor** security system that enforces access controls using a different
@@ -197,10 +201,12 @@ and executables. The `class` lines describe what is wanted. In this case, the `s
 library wants to find and then open the file for read/write/lock. The `getattr` is needed
 to find out about the file while searching for it. The `allow` directives are what `dovecot`
 needs to properly use it. Note that neither `dovecot` nor `postfix` ever write to the
-database. The `sqlite3` library does not know that and opens it anyway for full access.
+database. The `sqlite3` library does not know what the application that calls it
+would do and assumes it might do updates so it opens the file for full access anyway.
 
-**NOTE:** Should either server attempt a database query that would attempt to write a record,
-i.e. a `INSERT`, `DELETE`, or `UPDATE` the library would return an operation failed error.
+**NOTE:** Should either server somehow attempt a database query that would
+attempt to write a record,
+i.e. a `INSERT`, `DELETE`, or `UPDATE` the library would return an operation failed error because the application only has read-only access.
 
 The next step is to install the new policy. This is done by the `semodule` command:
 
@@ -211,7 +217,7 @@ The next step is to install the new policy. This is done by the `semodule` comma
 This command will take more than a few seconds to run because it must wait for things to
 settle in the operating system before making the change.
 
-The next step is to run the test again. This most likely be a rinse-and-repeat cycle because
+The next step is to run the test again. This will most likely be a rinse-and-repeat cycle because
 SELinux will trigger the denial at each step starting with the directory search and ending
 up with the 'lock' denial as `sqlite3` starts to process queries.
 

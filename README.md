@@ -1,4 +1,7 @@
-# postdove
+# POSTDOVE
+**Postdove** is a tool that integrates `postfix` and `dovecot` administration through
+the use of a common database implemented with **Sqlite**.
+
 This project started off with the need to upgrade my private email service which was
 based on an IMAP/POP3 server that was breaking in some rather unfriendly ways.
 The project that my IMAP server was from didn't seem to have much active development
@@ -49,8 +52,7 @@ Administrative changes can be made in to the service in real-time
 without requiring either server to reload or restart.
 `postdove` operates from the command line to add, delete, and edit aliases, routing and delivery, and the individual email user accounts.
 It supports *import* and *export* commands that use the file formats native to
-both `postfix` and `dovecot` to make setup and migration easier. 
-
+both `postfix` and `dovecot` to make setup and migration easier.
 
 This project is a real management utility with ACID level SQL (as best as Sqlite can do...) and a commands interface that an ordinary admin can use.
 And it is documented...
@@ -60,6 +62,18 @@ that make it more ACID compliant.
 Triggers and views were added to move all of the query complexity and relational logic into one place, the SQL engine.
 See the comments attached to the schema change sets in the git repository
 for details.
+
+Some may ask the legitimate question, "Why Sqlite? Why not use Postgresql or MariaDB?"
+This is a good question and I've implemented things such that it would not take too
+much work to port the schema and code to another database.
+This is why I used the common SQL library and API supported by *GO*.
+However, let us keep in mind that while this implementation is transaction safe,
+normal operation is occasional change transactions but constant queries.
+In addition, as the tutorial author points out, *Sqlite* is a library just like
+*DBM* - except it is transaction safe, eliminating `postmap` sessions.
+And it is faster on queries.
+Lastly, both *Sqlite* and *DBM* operate on local files which is more
+reliable and secure than maintaining a network connection to a separate service.
 
 For secure operation, the `postdove` utility uses the command line interface
 rather than, say a REST API, and proper use would be within an SSH session.

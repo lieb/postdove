@@ -4,10 +4,10 @@ Its database module requires the *Sqlite3* libraries which are used
 by the *go* SQL database package. Everything else is managed by the
 language's package and module system.
 
-Although *go* applications can be built on Windows,
+Although *GO* applications can be built on Windows,
 the email systems `postfix` and `dovecot` are usually not available
 on Windows.
-*go* also supports BSD Unix and its variants so `postdove` could be built
+*GO* also supports BSD Unix and its variants so `postdove` could be built
 and run on BSD based systems such as mac/OS, but that has not been tested.
 
 These instructions assume a Linux distribution and in detail, *Fedora 35*
@@ -18,16 +18,17 @@ Building `postdove` requires three packages in the development environment
 besides the usual developer tools like *git* and editors that would be
 familiar to any UNIX/Linux based developer.
 
-**NOTE:** The command lines below assume *Fedora* or *RHEL* packaging.
-Use the appropriate packaging tools for other distributions such as *apt*
-for Debian or Debian based distributions such as *Ubuntu*.
-
-The two primary tools and libraries are the *go* toolchain and the *Sqlite3*
+**NOTE:**
+	The command lines below assume *Fedora* or *RHEL* packaging.
+	Use the appropriate packaging tools for other distributions such as *apt*
+	for Debian or Debian based distributions such as *Ubuntu*.
+	
+The two primary tools and libraries are the *GO* toolchain and the *Sqlite3*
 libraries and utilities.
 ```
 # dnf install golang sqlite sqlite-libs libdbi-dbd-sqlite
 ```
-The *go* compiler uses its *cgo* package to build the linkage to
+The *GO* compiler uses its *cgo* package to build the linkage to
 the *sqlite* libraries.
 This requires the *C* compiler (gcc) and friends installed.
 This document assumes the developer already has these tools installed
@@ -36,7 +37,7 @@ There may be some loose bits that I have missed.
 I have a well-stocked development environment and have not done a packaging
 build where only the minimum sandbox is used.
 
-The *go* build toolchain will manage all its dependencies.
+The *GO* build toolchain will manage all its dependencies.
 
 ## Building
 Once the environment is set up, it is time to *clone* the repository
@@ -56,11 +57,11 @@ First clone the repository:
 We are now ready to set things up.
 
 ### Updating Dependencies
-The first thing to check is to see if your *go* language tools are current
+The first thing to check is to see if your *GO* language tools are current
 enough to do a successful build.
 Since documentation often lags the actual state of the code,
 check what the code expects.
-This application has been written using *go*'s module system which
+This application has been written using *GO*'s module system which
 embeds the tools version in the `go.mod` modules description file.
 Checking the current minimum version requirement can be done as follows:
 ```
@@ -71,7 +72,7 @@ Note the single quotes (`'`) to include a space character.
 This eliminated a lot of extraneous "stuff" in the output.
 What we are looking for is the `1.16` which is the minimum version
 of the toolchain required to build the code.
-The *go* developers have a very strong standard to always be backward
+The *GO* developers have a very strong standard to always be backward
 compatible within a major release, in this case `1`.
 This means that if your compiler chain is at least at `1.16` in this
 everything should work.
@@ -83,7 +84,7 @@ The software depends on a number of published *go* modules.
 Cloning the `postdove` is not enough code for the build.
 Before we can attempt a build we must import the necessary extra modules.
 These modules are referenced by the `import` statements in source code using
-a net addressible (URI) name the *go* can resolve.
+a net addressible (URI) name the *GO* can resolve.
 We do this by the command:
 ```
 [starlight postdove]$ go get
@@ -100,7 +101,7 @@ so one can readily determine the version used at build time.
 See the [Commands Reference](commands_reference.md) for the details on
 how to display the version.
 To transfer the *git* version information into a form that the compiler
-and runtime can find we have to use the *generate* feature of *go*.
+and runtime can find we have to use the *generate* feature of *GO*.
 This is done by executing the following command at the top level of
 the source tree:
 ```

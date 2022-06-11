@@ -9,8 +9,6 @@ or the DNS hostname of the machine.
 An address has properties depending on the context in which it is used.
 All of the properties can be edited and displayed but if the address is not used
 in the context of its use, the property has no effect.
-For example, an address can have a `uid` but if it is not a `dovecot` mailbox,
-the `uid` is irrelevant and not used.
 
 ## Add
 Addresses can be added to the database as part of adding or editing other tables in

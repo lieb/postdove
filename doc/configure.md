@@ -126,7 +126,7 @@ When all is done, what you should see on your client is its display of the servi
 On the server you should see a new directory `/srv/dovecot/example.com/test` with
 some subdirectories and files that should be in the familiar *Maildir* format.
 Check the ownerships and modes of the directories.
-They should all have *read-write-execute* and no access for either "group" or "other".
+They should all have *read-write-execute* for the *owner* and no access for either *group* or *other*, i.e. `rwx------`.
 They should also be owned by the user ID and group ID set for user `test`.
 Note that if your mail service is a "black box", there will only be administrator accounts on it
 and these IDs will be displayed as numbers, not names because `/etc/passwd` knows
